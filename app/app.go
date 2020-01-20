@@ -12,7 +12,10 @@ var (
 	}
 
 	Config = struct {
-	}{}
+		Port int
+	}{
+		Port: 11071,
+	}
 
 	Context = struct {
 		Echo *echo.Echo
@@ -25,4 +28,15 @@ func init() {
 
 func Debug() {
 	logrus.SetLevel(logrus.DebugLevel)
+}
+
+func RegisterWeb(f func(c *echo.Echo)) {
+	App.RegisterInit(xapp.InitTask{
+		Ready: func() bool {
+			return Context.Echo != nil
+		},
+		Init: func() {
+			f(Context.Echo)
+		},
+	})
 }
