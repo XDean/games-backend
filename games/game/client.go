@@ -35,6 +35,11 @@ func (c *Client) Error(err string) {
 	c.Send(ErrorEvent(err))
 }
 
+func (c *Client) Seat() (int, bool) {
+	seat, ok := c.host.seat[c.id]
+	return seat, ok
+}
+
 func (c *Client) Start() {
 	go c.read()
 	go c.write()
@@ -105,7 +110,7 @@ func (c *Client) write() {
 				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			err := c.conn.WriteJSON(message)
+			err := c.writeJSON(message)
 			if err != nil {
 				return
 			}
@@ -116,4 +121,19 @@ func (c *Client) write() {
 			}
 		}
 	}
+}
+
+func (c *Client) writeJSON(o interface{}) error {
+	w, err := c.conn.NextWriter(websocket.TextMessage)
+	if err != nil {
+		return err
+	}
+	bs, err := json.Marshal(o)
+	if _, err := w.Write(bs); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	return nil
 }

@@ -11,13 +11,17 @@ import (
 
 func init() {
 	app.RegisterWeb(func(c *echo.Echo) {
-		c.POST("/game/:game", createGame)
+		c.POST("/api/game/:game", createGame)
 		c.GET("/socket/game/:game/:id", gameSocket)
 	})
 }
 
 var (
-	upgrader = websocket.Upgrader{}
+	upgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
 )
 
 func gameSocket(c echo.Context) error {
@@ -41,12 +45,13 @@ func createGame(c echo.Context) error {
 
 	factory := GetFactory(gameName)
 	if factory == nil {
-		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such game: %d", gameName))
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such game: %s", gameName))
 	}
 
 	config := factory.NewConfig()
-	xecho.MustBindAndValidate(c, &config)
-
+	if config != nil {
+		xecho.MustBindAndValidate(c, &config)
+	}
 	game := factory.NewGame(config)
 	host := CreateHost(gameName, game)
 	return c.JSON(http.StatusOK, xecho.J{

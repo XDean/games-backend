@@ -1,0 +1,4 @@
+POST http://{{host}}/game/lostcities
+Accept: application/json
+
+###

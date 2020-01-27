@@ -13,7 +13,6 @@ import (
 func init() {
 	app.App.RegisterInitFunc(func() {
 		e := echo.New()
-		app.Context.Echo = e
 
 		e.Validator = xecho.NewValidator()
 
@@ -24,6 +23,8 @@ func init() {
 		e.GET("/ping", func(c echo.Context) error {
 			return c.JSON(http.StatusOK, "pong")
 		})
+
+		app.Context.Echo = e
 	})
 	app.App.RegisterRun(func() {
 		logrus.Fatal(app.Context.Echo.Start(fmt.Sprintf(":%d", app.Config.Port)))

@@ -1,7 +1,6 @@
 package lostcities
 
 import (
-	"games-backend/games/game"
 	"github.com/thoas/go-funk"
 	"math/rand"
 )
@@ -19,14 +18,7 @@ const (
 )
 
 type (
-	Card struct {
-		int
-	}
-
-	Game struct {
-		host    *game.Host
-		history [][]GameEvent
-
+	Board struct {
 		current int
 		deck    []Card     // [index] from 0 (top)
 		board   [][][]Card // [player][color][index] from 0 (oldest)
@@ -35,7 +27,7 @@ type (
 	}
 )
 
-func NewStandardGame() *Game {
+func NewStandardBoard() *Board {
 	deck := make([]Card, CARD*COLOR)
 	for i := range deck {
 		deck[i] = Card{i}
@@ -59,9 +51,8 @@ func NewStandardGame() *Game {
 	for i := range board {
 		hand[i] = make([]Card, 0)
 	}
-	g := &Game{
+	g := &Board{
 		current: 0,
-		history: [][]GameEvent{},
 		deck:    deck,
 		board:   board,
 		drop:    drop,
@@ -72,27 +63,38 @@ func NewStandardGame() *Game {
 	return g
 }
 
-func (c Card) Color() int {
-	return c.int / CARD
+func (g *Board) DrawCard(player int, count int) []Card {
+	card := g.deck[:count]
+	g.deck = g.deck[count:]
+	g.hand[player] = append(g.hand[player], card...)
+	return card
 }
 
-func (c Card) Point() int {
-	if c.IsDouble() {
-		return 0
-	} else {
-		return c.int - CARD_DOUBLE + 2
+func (g *Board) PlayCard(player int, card Card) {
+	if g.removeHandCard(player, card) {
+		g.board[player][card.Color()] = append(g.board[player][card.Color()], card)
 	}
 }
 
-func (c Card) IsDouble() bool {
-	return c.int < CARD_DOUBLE
+func (g *Board) DropCard(player int, card Card) {
+	if g.removeHandCard(player, card) {
+		g.drop[card.Color()] = append(g.drop[card.Color()], card)
+	}
 }
 
-func (g *Game) hasCard(player int, card Card) bool {
+func (g *Board) DrawDropCard(player int, color int) Card {
+	drop := g.drop[color]
+	card := drop[len(drop)-1]
+	g.drop[color] = drop[:len(drop)-1]
+	g.hand[player] = append(g.hand[player], card)
+	return card
+}
+
+func (g *Board) hasCard(player int, card Card) bool {
 	return funk.Contains(g.hand[player], card)
 }
 
-func (g *Game) removeHandCard(player int, card Card) bool {
+func (g *Board) removeHandCard(player int, card Card) bool {
 	index := funk.IndexOf(g.hand[player], card)
 	if index != -1 {
 		g.hand = append(g.hand[:index], g.hand[index+1:]...)
@@ -101,6 +103,6 @@ func (g *Game) removeHandCard(player int, card Card) bool {
 	return false
 }
 
-func (g *Game) next() {
+func (g *Board) next() {
 	g.current = (g.current + 1) % PLAYER
 }

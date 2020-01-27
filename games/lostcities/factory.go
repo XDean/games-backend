@@ -10,9 +10,12 @@ type Factory struct {
 }
 
 func (f Factory) NewConfig() interface{} {
-	return struct{}{}
+	return nil
 }
 
 func (f Factory) NewGame(config interface{}) game.Game {
-	return NewStandardGame()
+	return &Game{
+		history: [][]GameEvent{},
+		Board:   NewStandardBoard(),
+	}
 }

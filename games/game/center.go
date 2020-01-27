@@ -12,7 +12,7 @@ type gameMeta struct {
 }
 
 var (
-	gameMetas map[string]gameMeta
+	gameMetas = map[string]gameMeta{}
 )
 
 func Register(name string, factory Factory) {

@@ -13,7 +13,7 @@ var (
 	secretKey  string
 )
 
-func Start() {
+func main() {
 
 	cliApp := cli.NewApp()
 
@@ -43,7 +43,9 @@ func Start() {
 			app.Debug()
 		}
 		app.App.Config.SecretKey = secretKey
-		app.App.RegisterConfigPath(configPath)
+		if configPath != "" {
+			app.App.RegisterConfigPath(configPath)
+		}
 		app.App.Run()
 		return nil
 	}

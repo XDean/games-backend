@@ -2,7 +2,87 @@ package lostcities
 
 import (
 	"games-backend/games/game"
+	"strings"
 )
+
+type (
+	Game struct {
+		*Board
+
+		host    *game.Host
+		history [][]GameEvent
+	}
+
+	InfoEvent struct {
+	}
+
+	GameEvent struct {
+		// Play card
+		Card Card
+		Drop bool
+		// Draw card
+		FromDeck bool // Or from drop
+		Color    int  // Only available when from deck
+	}
+
+	PrivateInfo struct {
+		Seat        int
+		CurrentSeat int
+		Deck        int
+		MyBoard     [][]Card
+		OtherBoard  [][]Card
+		Drop        [][]Card
+		Hand        []Card
+	}
+)
+
+func (g *Game) Init(host *game.Host) {
+	g.host = host
+}
+
+func (g *Game) NewEvent(topic string) interface{} {
+	switch strings.ToLower(topic) {
+	case "play":
+		return GameEvent{}
+	case "info":
+		return InfoEvent{}
+	default:
+		return nil
+	}
+}
+
+func (g *Game) HandleEvent(client *game.Client, event interface{}) {
+	switch e := event.(type) {
+	case game.ConnectEvent, InfoEvent:
+		if seat, ok := client.Seat(); ok {
+			client.Send(game.TopicEvent{
+				Topic: "info",
+				Payload: PrivateInfo{
+					Seat:        seat,
+					CurrentSeat: g.current,
+					Deck:        len(g.deck),
+					Hand:        g.hand[seat],
+					Drop:        g.drop,
+					MyBoard:     g.board[seat],
+					OtherBoard:  g.board[1-seat],
+				},
+			})
+		} else {
+			client.Send(game.TopicEvent{
+				Topic: "info",
+				Payload: PrivateInfo{
+					CurrentSeat: g.current,
+					Deck:        len(g.deck),
+					Drop:        g.drop,
+					MyBoard:     g.board[0],
+					OtherBoard:  g.board[1],
+				},
+			})
+		}
+	case GameEvent:
+		g.Play(e)
+	}
+}
 
 func (g *Game) Play(event GameEvent) {
 	if event.Drop && !event.FromDeck && (event.Card.Color() == event.Color) {
@@ -44,33 +124,6 @@ func (g *Game) Play(event GameEvent) {
 			Payload: draw,
 		}, g.current)
 	}
-}
-
-func (g *Game) PlayCard(player int, card Card) {
-	if g.removeHandCard(player, card) {
-		g.board[player][card.Color()] = append(g.board[player][card.Color()], card)
-	}
-}
-
-func (g *Game) DropCard(player int, card Card) {
-	if g.removeHandCard(player, card) {
-		g.drop[card.Color()] = append(g.drop[card.Color()], card)
-	}
-}
-
-func (g *Game) DrawCard(player int, count int) []Card {
-	card := g.deck[:count]
-	g.deck = g.deck[count:]
-	g.hand[player] = append(g.hand[player], card...)
-	return card
-}
-
-func (g *Game) DrawDropCard(player int, color int) Card {
-	drop := g.drop[color]
-	card := drop[len(drop)-1]
-	g.drop[color] = drop[:len(drop)-1]
-	g.hand[player] = append(g.hand[player], card)
-	return card
 }
 
 func (g *Game) sendAll(event game.TopicEvent) {

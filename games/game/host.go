@@ -49,25 +49,24 @@ func (r *Host) Run() {
 				} else {
 					r.clients[client.id] = client
 					r.SendAll(TopicEvent{
-						Topic:   "Connect",
+						Topic:   "connect",
 						Payload: client.id,
 					})
 				}
 			case DisConnectEvent:
 				delete(r.clients, client.id)
 				r.SendAll(TopicEvent{
-					Topic:   "Disconnect",
+					Topic:   "disconnect",
 					Payload: client.id,
 				})
 			case ReadyEvent:
 				r.ready[client.id] = e.Ready
 				r.SendAll(TopicEvent{
-					Topic:   "Ready",
+					Topic:   "ready",
 					Payload: client.id,
 				})
-			default:
-				r.game.HandleEvent(client, e)
 			}
+			r.game.HandleEvent(client, event.Event)
 		}
 	}()
 }
@@ -100,10 +99,4 @@ func (r *Host) GetClientBySeat(seat int) *Client {
 		}
 	}
 	return nil
-}
-
-func (r *Host) Info() interface{} {
-	return struct {
-		Id int
-	}{}
 }
