@@ -36,7 +36,7 @@ func (c *Client) Error(err string) {
 }
 
 func (c *Client) Seat() (int, bool) {
-	seat, ok := c.host.seat[c.id]
+	seat, ok := c.host.idToSeat[c.id]
 	return seat, ok
 }
 

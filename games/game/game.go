@@ -9,5 +9,6 @@ type (
 		NewEvent(topic string) interface{}
 		Init(host *Host)
 		HandleEvent(client *Client, event interface{})
+		PlayerCount() int
 	}
 )

@@ -25,6 +25,7 @@ var (
 )
 
 func gameSocket(c echo.Context) error {
+	user := c.QueryParam("user")
 	gameName := c.Param("game")
 	id := IntParam(c, "id")
 	host := GetHost(gameName, id)
@@ -35,7 +36,7 @@ func gameSocket(c echo.Context) error {
 	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	xecho.MustNoError(err)
 
-	client := NewClient("", host, ws)
+	client := NewClient(user, host, ws)
 	client.Start()
 	return nil
 }

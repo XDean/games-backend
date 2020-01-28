@@ -36,6 +36,10 @@ type (
 	}
 )
 
+func (g *Game) PlayerCount() int {
+	return 2
+}
+
 func (g *Game) Init(host *game.Host) {
 	g.host = host
 }
@@ -44,7 +48,7 @@ func (g *Game) NewEvent(topic string) interface{} {
 	switch strings.ToLower(topic) {
 	case "play":
 		return GameEvent{}
-	case "info":
+	case "game-info":
 		return InfoEvent{}
 	default:
 		return nil
@@ -56,7 +60,7 @@ func (g *Game) HandleEvent(client *game.Client, event interface{}) {
 	case game.ConnectEvent, InfoEvent:
 		if seat, ok := client.Seat(); ok {
 			client.Send(game.TopicEvent{
-				Topic: "info",
+				Topic: "game-info",
 				Payload: PrivateInfo{
 					Seat:        seat,
 					CurrentSeat: g.current,
@@ -69,7 +73,7 @@ func (g *Game) HandleEvent(client *game.Client, event interface{}) {
 			})
 		} else {
 			client.Send(game.TopicEvent{
-				Topic: "info",
+				Topic: "game-info",
 				Payload: PrivateInfo{
 					CurrentSeat: g.current,
 					Deck:        len(g.deck),
