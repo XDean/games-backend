@@ -1,21 +1,19 @@
 package lostcities
 
-type Card struct {
-	int
-}
+type Card int
 
 func (c Card) Color() int {
-	return c.int / CARD
+	return int(c) / CARD
 }
 
 func (c Card) Point() int {
 	if c.IsDouble() {
 		return 0
 	} else {
-		return c.int - CARD_DOUBLE + 2
+		return int(c)%CARD - CARD_DOUBLE + 2
 	}
 }
 
 func (c Card) IsDouble() bool {
-	return c.int < CARD_DOUBLE
+	return int(c) < CARD_DOUBLE
 }

@@ -91,7 +91,7 @@ func (c *Client) read() {
 				c.Error(err.Error())
 				continue
 			}
-			c.host.Send(c, e)
+			c.host.Send(c, e.Payload)
 		}
 	}
 }

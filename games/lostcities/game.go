@@ -17,22 +17,24 @@ type (
 	}
 
 	GameEvent struct {
+		Seat int `json:"seat"`
 		// Play card
-		Card Card
-		Drop bool
+		Card Card `json:"card"`
+		Drop bool `json:"drop"`
 		// Draw card
-		FromDeck bool // Or from drop
-		Color    int  // Only available when from deck
+		FromDeck bool `json:"deck"`  // Or from drop
+		Color    int  `json:"color"` // Only available when from drop
 	}
 
-	PrivateInfo struct {
-		Seat        int
-		CurrentSeat int
-		Deck        int
-		MyBoard     [][]Card
-		OtherBoard  [][]Card
-		Drop        [][]Card
-		Hand        []Card
+	GameInfo struct {
+		Over        bool     `json:"over"`
+		Seat        int      `json:"seat"`
+		CurrentSeat int      `json:"current-seat"`
+		Deck        int      `json:"deck"`
+		MyBoard     [][]Card `json:"my-board"`
+		OtherBoard  [][]Card `json:"other-board"`
+		DropBoard   [][]Card `json:"drop-board"`
+		Hand        []Card   `json:"hand"`
 	}
 )
 
@@ -47,9 +49,9 @@ func (g *Game) Init(host *game.Host) {
 func (g *Game) NewEvent(topic string) interface{} {
 	switch strings.ToLower(topic) {
 	case "play":
-		return GameEvent{}
+		return &GameEvent{}
 	case "game-info":
-		return InfoEvent{}
+		return &InfoEvent{}
 	default:
 		return nil
 	}
@@ -57,16 +59,17 @@ func (g *Game) NewEvent(topic string) interface{} {
 
 func (g *Game) HandleEvent(client *game.Client, event interface{}) {
 	switch e := event.(type) {
-	case game.ConnectEvent, InfoEvent:
+	case game.ConnectEvent, *InfoEvent:
 		if seat, ok := client.Seat(); ok {
 			client.Send(game.TopicEvent{
 				Topic: "game-info",
-				Payload: PrivateInfo{
+				Payload: GameInfo{
+					Over:        g.over,
 					Seat:        seat,
 					CurrentSeat: g.current,
 					Deck:        len(g.deck),
 					Hand:        g.hand[seat],
-					Drop:        g.drop,
+					DropBoard:   g.drop,
 					MyBoard:     g.board[seat],
 					OtherBoard:  g.board[1-seat],
 				},
@@ -74,17 +77,18 @@ func (g *Game) HandleEvent(client *game.Client, event interface{}) {
 		} else {
 			client.Send(game.TopicEvent{
 				Topic: "game-info",
-				Payload: PrivateInfo{
+				Payload: GameInfo{
+					Over:        g.over,
 					CurrentSeat: g.current,
 					Deck:        len(g.deck),
-					Drop:        g.drop,
+					DropBoard:   g.drop,
 					MyBoard:     g.board[0],
 					OtherBoard:  g.board[1],
 				},
 			})
 		}
-	case GameEvent:
-		g.Play(e)
+	case *GameEvent:
+		g.Play(*e)
 	}
 }
 
@@ -106,8 +110,15 @@ func (g *Game) Play(event GameEvent) {
 		g.sendError("No card to draw in this color's drop area")
 		return
 	}
-	defer g.next()
-	g.history[g.current] = append(g.history[g.current], event)
+	defer func() {
+		g.next()
+		g.sendAll(game.TopicEvent{
+			Topic:   "turn",
+			Payload: g.current,
+		})
+	}()
+	//g.history[g.current] = append(g.history[g.current], event)
+	event.Seat = g.current
 	g.sendAll(event.topic())
 	// TODO Check deck has card
 	if event.Drop {

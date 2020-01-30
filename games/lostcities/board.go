@@ -19,6 +19,7 @@ const (
 
 type (
 	Board struct {
+		over    bool
 		current int
 		deck    []Card     // [index] from 0 (top)
 		board   [][][]Card // [player][color][index] from 0 (oldest)
@@ -30,7 +31,7 @@ type (
 func NewStandardBoard() *Board {
 	deck := make([]Card, CARD*COLOR)
 	for i := range deck {
-		deck[i] = Card{i}
+		deck[i] = Card(i)
 	}
 	rand.Shuffle(len(deck), func(i, j int) { deck[i], deck[j] = deck[j], deck[i] })
 
@@ -48,7 +49,7 @@ func NewStandardBoard() *Board {
 	}
 
 	hand := make([][]Card, PLAYER)
-	for i := range board {
+	for i := range hand {
 		hand[i] = make([]Card, 0)
 	}
 	g := &Board{
@@ -97,7 +98,7 @@ func (g *Board) hasCard(player int, card Card) bool {
 func (g *Board) removeHandCard(player int, card Card) bool {
 	index := funk.IndexOf(g.hand[player], card)
 	if index != -1 {
-		g.hand = append(g.hand[:index], g.hand[index+1:]...)
+		g.hand[player] = append(g.hand[player][:index], g.hand[player][index+1:]...)
 		return true
 	}
 	return false

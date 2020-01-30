@@ -22,15 +22,15 @@ type (
 	}
 
 	playerInfo struct {
-		Id        string
-		Seat      int
-		Connected bool
-		Ready     bool
+		Id        string `json:"id"`
+		Seat      int    `json:"seat"`
+		Connected bool   `json:"connected"`
+		Ready     bool   `json:"ready"`
 	}
 
 	hostInfo struct {
-		Id      int
-		Players []*playerInfo
+		Id      int           `json:"id"`
+		Players []*playerInfo `json:"players"`
 	}
 )
 
@@ -60,21 +60,27 @@ func (r *Host) Run() {
 			client := event.client
 			switch e := event.Event.(type) {
 			case ConnectEvent:
-				if _, ok := r.idToSeat[client.id]; !ok {
-					if seat, ok := r.availableSeat(); ok {
-						r.seatToId[seat] = client.id
-						r.idToSeat[client.id] = seat
-					} else {
-						client.Error("房间已满")
-						client.Close()
-						continue
-					}
-				}
 				if _, ok := r.clients[client.id]; ok {
 					client.Error("Connection already exist")
 					client.Close()
 					continue
 				} else {
+					if _, ok := r.idToSeat[client.id]; !ok {
+						if seat, ok := r.availableSeat(); ok {
+							r.seatToId[seat] = client.id
+							r.idToSeat[client.id] = seat
+							r.SendAll(TopicEvent{
+								Topic: "join",
+								Payload: playerInfo{
+									Id:   client.id,
+									Seat: seat,
+								},
+							})
+						} else {
+							client.Error("房间已满")
+							continue
+						}
+					}
 					r.clients[client.id] = client
 					r.SendAll(TopicEvent{
 						Topic:   "connect",

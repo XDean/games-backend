@@ -49,6 +49,7 @@ func CreateHost(game string, g Game) *Host {
 			id := funk.RandomInt(1000, 9999)
 			if _, ok := meta.hosts[id]; !ok {
 				host := NewHost(id, g)
+				g.Init(host)
 				host.Run()
 				meta.hosts[id] = host
 				return host
