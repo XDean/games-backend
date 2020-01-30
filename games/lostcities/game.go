@@ -35,6 +35,7 @@ type (
 		OtherBoard  [][]Card `json:"other-board"`
 		DropBoard   [][]Card `json:"drop-board"`
 		Hand        []Card   `json:"hand"`
+		Score       []int    `json:"score"`
 	}
 )
 
@@ -72,6 +73,7 @@ func (g *Game) HandleEvent(client *game.Client, event interface{}) {
 					DropBoard:   g.drop,
 					MyBoard:     g.board[seat],
 					OtherBoard:  g.board[1-seat],
+					Score:       g.score,
 				},
 			})
 		} else {
@@ -84,38 +86,57 @@ func (g *Game) HandleEvent(client *game.Client, event interface{}) {
 					DropBoard:   g.drop,
 					MyBoard:     g.board[0],
 					OtherBoard:  g.board[1],
+					Score:       g.score,
 				},
 			})
 		}
 	case *GameEvent:
-		g.Play(*e)
+		g.Play(client, *e)
 	}
 }
 
-func (g *Game) Play(event GameEvent) {
+func (g *Game) Play(client *game.Client, event GameEvent) {
+	if g.over {
+		client.Error("游戏已经结束")
+		return
+	}
+	if seat, ok := client.Seat(); !ok {
+		client.Error("你不是该局玩家")
+		return
+	} else if g.current != seat {
+		client.Error("现在不是你的回合")
+		return
+	}
 	if event.Drop && !event.FromDeck && (event.Card.Color() == event.Color) {
-		g.sendError("You can't draw the drop card immediately")
+		client.Error("你不能立刻摸起刚刚弃置的牌")
 		return
 	}
 	if !g.hasCard(g.current, event.Card) {
-		g.sendError("You don't have the card to play")
+		client.Error("卡牌不存在")
 		return
 	}
 	cards := g.board[g.current][event.Card.Color()]
 	if !event.Drop && len(cards) > 0 && cards[0].Point() > event.Card.Point() {
-		g.sendError("You can't play the card because you already have a larger one")
+		client.Error("每个系列的卡牌必须递增打出")
 		return
 	}
 	if !event.FromDeck && len(g.drop[event.Color]) == 0 {
-		g.sendError("No card to draw in this color's drop area")
+		client.Error("该弃牌堆中没有牌")
 		return
 	}
 	defer func() {
 		g.next()
-		g.sendAll(game.TopicEvent{
-			Topic:   "turn",
-			Payload: g.current,
-		})
+		if g.over {
+			g.sendAll(game.TopicEvent{
+				Topic:   "over",
+				Payload: g.score,
+			})
+		} else {
+			g.sendAll(game.TopicEvent{
+				Topic:   "turn",
+				Payload: g.current,
+			})
+		}
 	}()
 	//g.history[g.current] = append(g.history[g.current], event)
 	event.Seat = g.current

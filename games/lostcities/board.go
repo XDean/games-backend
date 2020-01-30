@@ -15,6 +15,7 @@ const (
 	CARD        = 12
 	CARD_DOUBLE = 3
 	CARD_POINT  = CARD - CARD_DOUBLE
+	HAND        = 8
 )
 
 type (
@@ -25,6 +26,7 @@ type (
 		board   [][][]Card // [player][color][index] from 0 (oldest)
 		drop    [][]Card   // [color][index] from 0 (oldest)
 		hand    [][]Card   // [player][index] no order, by default 0 (oldest)
+		score   []int
 	}
 )
 
@@ -58,9 +60,10 @@ func NewStandardBoard() *Board {
 		board:   board,
 		drop:    drop,
 		hand:    hand,
+		score:   make([]int, 2),
 	}
-	g.DrawCard(0, 7)
-	g.DrawCard(1, 7)
+	g.DrawCard(0, HAND)
+	g.DrawCard(1, HAND)
 	return g
 }
 
@@ -105,5 +108,34 @@ func (g *Board) removeHandCard(player int, card Card) bool {
 }
 
 func (g *Board) next() {
-	g.current = (g.current + 1) % PLAYER
+	if len(g.deck) == 0 {
+		g.over = true
+		for player, board := range g.board {
+			score := 0
+			for _, cards := range board {
+				sum := 0
+				times := 1
+				count := 0
+				if len(board) != 0 {
+					sum = -DEVELOP_POINT
+					for _, card := range cards {
+						if card.IsDouble() {
+							times++
+						} else {
+							score += card.Point()
+							count++
+						}
+					}
+				}
+				sum = times * sum
+				if count >= BONUS_COUNT {
+					sum += BONUS_POINT
+				}
+				score += sum
+			}
+			g.score[player] = score
+		}
+	} else {
+		g.current = (g.current + 1) % PLAYER
+	}
 }
