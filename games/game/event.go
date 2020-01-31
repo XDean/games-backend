@@ -17,7 +17,7 @@ type (
 
 func ErrorEvent(err string) TopicEvent {
 	return TopicEvent{
-		Topic:   "Error",
+		Topic:   "error",
 		Payload: err,
 	}
 }

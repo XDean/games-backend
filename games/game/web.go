@@ -25,16 +25,22 @@ var (
 )
 
 func gameSocket(c echo.Context) error {
+	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+	xecho.MustNoError(err)
+
 	user := c.QueryParam("user")
 	gameName := c.Param("game")
 	id := IntParam(c, "id")
+
 	host := GetHost(gameName, id)
 	if host == nil {
-		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("Host not found: %d", id))
+		_ = ws.WriteJSON(TopicEvent{
+			Topic:   "error",
+			Payload: "房间不存在",
+		})
+		_ = ws.Close()
+		return nil
 	}
-
-	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
-	xecho.MustNoError(err)
 
 	client := NewClient(user, host, ws)
 	client.Start()
