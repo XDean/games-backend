@@ -1,6 +1,9 @@
 package game
 
-import "github.com/thoas/go-funk"
+import (
+	"github.com/thoas/go-funk"
+	"github.com/xdean/goex/xecho"
+)
 
 type (
 	Host struct {
@@ -59,7 +62,7 @@ func (r *Host) Run() {
 			event := <-r.eventChan
 			client := event.client
 			switch e := event.Event.(type) {
-			case ConnectEvent:
+			case *ConnectEvent:
 				if _, ok := r.clients[client.id]; ok {
 					client.Error("Connection already exist")
 					client.Close()
@@ -91,26 +94,44 @@ func (r *Host) Run() {
 						Payload: r.toInfo(),
 					})
 				}
-			case DisConnectEvent:
+			case *DisConnectEvent:
 				delete(r.clients, client.id)
 				r.SendAll(TopicEvent{
 					Topic:   "disconnect",
 					Payload: client.id,
 				})
-			case ReadyEvent:
-				r.ready[client.id] = e.Ready
+			case *ReadyEvent:
+				r.ready[client.id] = bool(*e)
 				r.SendAll(TopicEvent{
 					Topic:   "ready",
 					Payload: client.id,
+				})
+				if r.allReady() {
+					r.game.HandleEvent(nil, &StartEvent{})
+				}
+			case *ChatEvent:
+				r.SendAll(TopicEvent{
+					Topic: "chat",
+					Payload: xecho.J{
+						"id":   client.id,
+						"text": string(*e),
+					},
 				})
 			}
 			r.game.HandleEvent(client, event.Event)
 		}
 	}()
 }
+
 func (r *Host) SendAll(event TopicEvent) {
 	for _, c := range r.clients {
 		c.Send(event)
+	}
+}
+
+func (r *Host) SendEach(event func(client *Client) TopicEvent) {
+	for _, c := range r.clients {
+		c.Send(event(c))
 	}
 }
 
@@ -159,4 +180,28 @@ func (r *Host) availableSeat() (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+func (r *Host) allReady() bool {
+	for _, id := range r.seatToId {
+		if id == "" {
+			return false
+		} else if !r.ready[id] {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *Host) NewEvent(s string) interface{} {
+	switch s {
+	case "ready":
+		b := ReadyEvent(false)
+		return &b
+	case "chat":
+		b := ChatEvent("")
+		return &b
+	default:
+		return r.game.NewEvent(s)
+	}
 }

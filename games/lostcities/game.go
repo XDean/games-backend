@@ -22,8 +22,9 @@ type (
 		Card Card `json:"card"`
 		Drop bool `json:"drop"`
 		// Draw card
-		FromDeck bool `json:"deck"`  // Or from drop
-		Color    int  `json:"color"` // Only available when from drop
+		FromDeck     bool `json:"deck"`           // Or from drop
+		Color        int  `json:"draw-color"`     // Only available when from drop
+		DrawDropCard Card `json:"draw-drop-card"` // Only for response
 	}
 
 	GameInfo struct {
@@ -60,35 +61,16 @@ func (g *Game) NewEvent(topic string) interface{} {
 
 func (g *Game) HandleEvent(client *game.Client, event interface{}) {
 	switch e := event.(type) {
-	case game.ConnectEvent, *InfoEvent:
-		if seat, ok := client.Seat(); ok {
-			client.Send(game.TopicEvent{
-				Topic: "game-info",
-				Payload: GameInfo{
-					Over:        g.over,
-					Seat:        seat,
-					CurrentSeat: g.current,
-					Deck:        len(g.deck),
-					Hand:        g.hand[seat],
-					DropBoard:   g.drop,
-					MyBoard:     g.board[seat],
-					OtherBoard:  g.board[1-seat],
-					Score:       g.score,
-				},
+	case *game.StartEvent:
+		if g.Board == nil || g.over {
+			g.Board = NewStandardBoard()
+			g.host.SendEach(func(c *game.Client) game.TopicEvent {
+				return g.gameInfo("start", c)
 			})
-		} else {
-			client.Send(game.TopicEvent{
-				Topic: "game-info",
-				Payload: GameInfo{
-					Over:        g.over,
-					CurrentSeat: g.current,
-					Deck:        len(g.deck),
-					DropBoard:   g.drop,
-					MyBoard:     g.board[0],
-					OtherBoard:  g.board[1],
-					Score:       g.score,
-				},
-			})
+		}
+	case *game.ConnectEvent, *InfoEvent:
+		if g.Board != nil {
+			client.Send(g.gameInfo("game-info", client))
 		}
 	case *GameEvent:
 		g.Play(client, *e)
@@ -140,7 +122,6 @@ func (g *Game) Play(client *game.Client, event GameEvent) {
 	}()
 	//g.history[g.current] = append(g.history[g.current], event)
 	event.Seat = g.current
-	g.sendAll(event.topic())
 	// TODO Check deck has card
 	if event.Drop {
 		g.DropCard(g.current, event.Card)
@@ -149,16 +130,46 @@ func (g *Game) Play(client *game.Client, event GameEvent) {
 	}
 	if event.FromDeck {
 		draw := g.DrawCard(g.current, 1)[0]
-		g.sendToSeat(game.TopicEvent{
+		defer g.sendToSeat(game.TopicEvent{
 			Topic:   "draw",
 			Payload: draw,
 		}, g.current)
 	} else {
 		draw := g.DrawDropCard(g.current, event.Color)
-		g.sendToSeat(game.TopicEvent{
-			Topic:   "draw",
-			Payload: draw,
-		}, g.current)
+		event.DrawDropCard = draw
+	}
+	g.sendAll(event.topic())
+}
+
+func (g *Game) gameInfo(topic string, client *game.Client) game.TopicEvent {
+	if seat, ok := client.Seat(); ok {
+		return game.TopicEvent{
+			Topic: topic,
+			Payload: GameInfo{
+				Over:        g.over,
+				Seat:        seat,
+				CurrentSeat: g.current,
+				Deck:        len(g.deck),
+				Hand:        g.hand[seat],
+				DropBoard:   g.drop,
+				MyBoard:     g.board[seat],
+				OtherBoard:  g.board[1-seat],
+				Score:       g.score,
+			},
+		}
+	} else {
+		return game.TopicEvent{
+			Topic: topic,
+			Payload: GameInfo{
+				Over:        g.over,
+				CurrentSeat: g.current,
+				Deck:        len(g.deck),
+				DropBoard:   g.drop,
+				MyBoard:     g.board[0],
+				OtherBoard:  g.board[1],
+				Score:       g.score,
+			},
+		}
 	}
 }
 

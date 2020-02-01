@@ -10,9 +10,11 @@ type (
 
 	DisConnectEvent struct{}
 
-	ReadyEvent struct {
-		Ready bool
-	}
+	ReadyEvent bool
+
+	ChatEvent string
+
+	StartEvent struct{}
 )
 
 func ErrorEvent(err string) TopicEvent {

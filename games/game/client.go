@@ -51,10 +51,10 @@ func (c *Client) Close() {
 
 func (c *Client) read() {
 	defer func() {
-		c.host.Send(c, DisConnectEvent{})
+		c.host.Send(c, &DisConnectEvent{})
 		_ = c.conn.Close()
 	}()
-	c.host.Send(c, ConnectEvent{})
+	c.host.Send(c, &ConnectEvent{})
 	_ = c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { _ = c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
@@ -66,32 +66,24 @@ func (c *Client) read() {
 			return
 		}
 		topic := struct {
-			Topic string `json:"topic"`
+			Topic   string          `json:"topic"`
+			Payload json.RawMessage `json:"payload"`
 		}{}
 		err = json.Unmarshal(message, &topic)
 		if err != nil {
 			c.Error(err.Error())
 			continue
 		}
-		var event interface{}
-		switch strings.ToLower(topic.Topic) {
-		case "ready":
-			event = ReadyEvent{}
-		default:
-			event = c.host.game.NewEvent(topic.Topic)
-		}
+		event := c.host.NewEvent(strings.ToLower(topic.Topic))
 		if event == nil {
 			c.Error("Unknown Topic: " + topic.Topic)
 		} else {
-			e := TopicEvent{
-				Payload: event,
-			}
-			err := json.Unmarshal(message, &e)
+			err := json.Unmarshal(topic.Payload, event)
 			if err != nil {
 				c.Error(err.Error())
 				continue
 			}
-			c.host.Send(c, e.Payload)
+			c.host.Send(c, event)
 		}
 	}
 }

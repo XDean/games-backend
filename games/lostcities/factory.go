@@ -16,6 +16,5 @@ func (f Factory) NewConfig() interface{} {
 func (f Factory) NewGame(config interface{}) game.Game {
 	return &Game{
 		history: [][]GameEvent{},
-		Board:   NewStandardBoard(),
 	}
 }
