@@ -98,7 +98,7 @@ func (g *Game) Play(client *game.Client, event GameEvent) {
 		return
 	}
 	cards := g.board[g.current][event.Card.Color()]
-	if !event.Drop && len(cards) > 0 && cards[0].Point() > event.Card.Point() {
+	if !event.Drop && len(cards) > 0 && !cards[0].IsDouble() && cards[0].Point() > event.Card.Point() {
 		client.Error("每个系列的卡牌必须递增打出")
 		return
 	}
