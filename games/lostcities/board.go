@@ -10,11 +10,9 @@ const (
 	BONUS_COUNT   = 8
 	BONUS_POINT   = 20
 
-	PLAYER      = 2
 	COLOR       = 5
 	CARD        = 12
 	CARD_DOUBLE = 3
-	CARD_POINT  = CARD - CARD_DOUBLE
 	HAND        = 8
 )
 
@@ -22,11 +20,11 @@ type (
 	Board struct {
 		over    bool
 		current int
-		deck    []Card     // [index] from 0 (top)
-		board   [][][]Card // [player][color][index] from 0 (oldest)
-		drop    [][]Card   // [color][index] from 0 (oldest)
-		hand    [][]Card   // [player][index] no order, by default 0 (oldest)
-		score   []int
+		deck    []Card      // [index] from 0 (top)
+		drop    [][]Card    // [color][index] from 0 (oldest)
+		board   [2][][]Card // [player][color][index] from 0 (oldest)
+		hand    [2][]Card   // [player][index] no order, by default 0 (oldest)
+		score   [2]int
 	}
 )
 
@@ -37,7 +35,7 @@ func NewStandardBoard() *Board {
 	}
 	rand.Shuffle(len(deck), func(i, j int) { deck[i], deck[j] = deck[j], deck[i] })
 
-	board := make([][][]Card, PLAYER)
+	board := [2][][]Card{}
 	for i := range board {
 		board[i] = make([][]Card, COLOR)
 		for m := range board[i] {
@@ -50,17 +48,17 @@ func NewStandardBoard() *Board {
 		drop[i] = make([]Card, 0)
 	}
 
-	hand := make([][]Card, PLAYER)
+	hand := [2][]Card{}
 	for i := range hand {
 		hand[i] = make([]Card, 0)
 	}
 	g := &Board{
 		current: 0,
 		deck:    deck,
-		board:   board,
+		board:   nil,
 		drop:    drop,
 		hand:    hand,
-		score:   make([]int, 2),
+		score:   [2]int{},
 	}
 	g.DrawCard(0, HAND)
 	g.DrawCard(1, HAND)
@@ -136,6 +134,6 @@ func (g *Board) next() {
 			g.score[player] = score
 		}
 	} else {
-		g.current = (g.current + 1) % PLAYER
+		g.current = (g.current + 1) % 2
 	}
 }
