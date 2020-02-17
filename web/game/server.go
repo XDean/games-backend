@@ -2,10 +2,9 @@ package game
 
 import (
 	"encoding/json"
-	"fmt"
 	"games-backend/games/host"
+	"games-backend/util"
 	"github.com/gorilla/websocket"
-	"reflect"
 )
 
 type (
@@ -72,16 +71,18 @@ func (s Server) run() {
 				}
 			}
 
-			s.host.Handle(host.Context{
-				Who:   client.id,
-				Topic: event.topic,
+			err := s.host.Handle(host.NewContext(host.Context{
+				ClientId: client.id,
+				Topic:    event.topic,
 				GetPayload: func(payload interface{}) error {
 					return json.Unmarshal(event.payload, payload)
 				},
 				SendEvent:    s.send,
 				TriggerEvent: s._triggerEvent,
-			})
-
+			}))
+			if err != nil {
+				client.sendToClient(host.ErrorEvent(err.Error()))
+			}
 			if event.done != nil {
 				close(event.done)
 			}
@@ -93,25 +94,17 @@ func (s Server) close() {
 	// TODO
 }
 
-func (s Server) _triggerEvent(event host.TopicEvent) {
-	payloadValue := reflect.ValueOf(event.Payload)
-	s.host.Handle(host.Context{
-		Who:   "",
-		Topic: event.Topic,
+func (s Server) _triggerEvent(event host.TopicEvent) error {
+	receiverFunc := util.ReflectSetReceiver(event.Payload)
+	return s.host.Handle(host.NewContext(host.Context{
+		ClientId: "",
+		Topic:    event.Topic,
 		GetPayload: func(payload interface{}) error {
-			rv := reflect.ValueOf(payload)
-			if rv.Kind() == reflect.Interface || rv.Kind() == reflect.Ptr {
-				receiveValue := rv.Elem()
-				if receiveValue.Type() == payloadValue.Type() {
-					receiveValue.Set(payloadValue)
-					return nil
-				}
-			}
-			return fmt.Errorf("Wrong payload type, except %T, actual %T", payload, event.Payload)
+			return receiverFunc(payload)
 		},
 		SendEvent:    s.send,
 		TriggerEvent: s._triggerEvent,
-	})
+	}))
 }
 
 func (s Server) send(id string, event host.TopicEvent) {

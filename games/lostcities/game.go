@@ -1,15 +1,14 @@
 package lostcities
 
 import (
-	"games-backend/games/game"
-	"strings"
+	"fmt"
+	"games-backend/games/host"
+	"games-backend/games/host/multi_player"
 )
 
 type (
 	Game struct {
 		*Board
-
-		host    *game.Host
 		history [][]GameEvent
 	}
 
@@ -36,85 +35,69 @@ type (
 		OtherBoard  [][]Card `json:"other-board"`
 		DropBoard   [][]Card `json:"drop-board"`
 		Hand        []Card   `json:"hand"`
-		Score       []int    `json:"score"`
+		Score       [2]int   `json:"score"`
 	}
 )
+
+func (g *Game) Handle(ctx multi_player.Context) error {
+	switch ctx.Topic {
+	case "game-start":
+		if g.Board == nil || g.over {
+			g.Board = NewStandardBoard()
+			ctx.SendEach(func(id string) host.TopicEvent {
+				return g.gameInfo(ctx, "start", id)
+			})
+		}
+	case "game-info":
+		if g.Board != nil {
+			ctx.SendBack(g.gameInfo(ctx, "game-info", ctx.ClientId))
+		}
+	case "play":
+		event := GameEvent{}
+		err := ctx.GetPayload(&event)
+		if err != nil {
+			return err
+		}
+		return g.Play(ctx, ctx.ClientId, event)
+	}
+	return nil
+}
 
 func (g *Game) PlayerCount() int {
 	return 2
 }
 
-func (g *Game) Init(host *game.Host) {
-	g.host = host
-}
-
-func (g *Game) NewEvent(topic string) interface{} {
-	switch strings.ToLower(topic) {
-	case "play":
-		return &GameEvent{}
-	case "game-info":
-		return &InfoEvent{}
-	default:
-		return nil
-	}
-}
-
-func (g *Game) HandleEvent(client *game.Client, event interface{}) {
-	switch e := event.(type) {
-	case *game.StartEvent:
-		if g.Board == nil || g.over {
-			g.Board = NewStandardBoard()
-			g.host.SendEach(func(c *game.Client) game.TopicEvent {
-				return g.gameInfo("start", c)
-			})
-		}
-	case *game.ConnectEvent, *InfoEvent:
-		if g.Board != nil {
-			client.Send(g.gameInfo("game-info", client))
-		}
-	case *GameEvent:
-		g.Play(client, *e)
-	}
-}
-
-func (g *Game) Play(client *game.Client, event GameEvent) {
+func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error {
 	if g.over {
-		client.Error("游戏已经结束")
-		return
+		return fmt.Errorf("游戏已经结束")
 	}
-	if seat, ok := client.Seat(); !ok {
-		client.Error("你不是该局玩家")
-		return
+	if seat, ok := ctx.GetSeat(id); !ok {
+		return fmt.Errorf("你不是该局玩家")
 	} else if g.current != seat {
-		client.Error("现在不是你的回合")
-		return
+		return fmt.Errorf("现在不是你的回合")
 	}
 	if event.Drop && !event.FromDeck && (event.Card.Color() == event.Color) {
-		client.Error("你不能立刻摸起刚刚弃置的牌")
-		return
+		return fmt.Errorf("你不能立刻摸起刚刚弃置的牌")
 	}
 	if !g.hasCard(g.current, event.Card) {
-		client.Error("卡牌不存在")
-		return
+		return fmt.Errorf("卡牌不存在")
 	}
 	cards := g.board[g.current][event.Card.Color()]
 	if !event.Drop && len(cards) > 0 && !cards[0].IsDouble() && cards[0].Point() > event.Card.Point() {
-		client.Error("每个系列的卡牌必须递增打出")
-		return
+		return fmt.Errorf("每个系列的卡牌必须递增打出")
 	}
 	if !event.FromDeck && len(g.drop[event.Color]) == 0 {
-		client.Error("该弃牌堆中没有牌")
-		return
+		return fmt.Errorf("该弃牌堆中没有牌")
 	}
 	defer func() {
 		g.next()
 		if g.over {
-			g.sendAll(game.TopicEvent{
+			ctx.SendAll(host.TopicEvent{
 				Topic:   "over",
 				Payload: g.score,
 			})
 		} else {
-			g.sendAll(game.TopicEvent{
+			ctx.SendAll(host.TopicEvent{
 				Topic:   "turn",
 				Payload: g.current,
 			})
@@ -130,7 +113,7 @@ func (g *Game) Play(client *game.Client, event GameEvent) {
 	}
 	if event.FromDeck {
 		draw := g.DrawCard(g.current, 1)[0]
-		defer g.sendToSeat(game.TopicEvent{
+		defer ctx.SendSeat(host.TopicEvent{
 			Topic:   "draw",
 			Payload: draw,
 		}, g.current)
@@ -138,12 +121,13 @@ func (g *Game) Play(client *game.Client, event GameEvent) {
 		draw := g.DrawDropCard(g.current, event.Color)
 		event.DrawDropCard = draw
 	}
-	g.sendAll(event.topic())
+	ctx.SendAll(event.asTopic())
+	return nil
 }
 
-func (g *Game) gameInfo(topic string, client *game.Client) game.TopicEvent {
-	if seat, ok := client.Seat(); ok {
-		return game.TopicEvent{
+func (g *Game) gameInfo(ctx multi_player.Context, topic string, id string) host.TopicEvent {
+	if seat, ok := ctx.GetSeat(id); ok {
+		return host.TopicEvent{
 			Topic: topic,
 			Payload: GameInfo{
 				Over:        g.over,
@@ -158,7 +142,7 @@ func (g *Game) gameInfo(topic string, client *game.Client) game.TopicEvent {
 			},
 		}
 	} else {
-		return game.TopicEvent{
+		return host.TopicEvent{
 			Topic: topic,
 			Payload: GameInfo{
 				Over:        g.over,
@@ -173,24 +157,8 @@ func (g *Game) gameInfo(topic string, client *game.Client) game.TopicEvent {
 	}
 }
 
-func (g *Game) sendAll(event game.TopicEvent) {
-	g.host.SendAll(event)
-}
-
-func (g *Game) sendToSeat(event game.TopicEvent, seats ...int) {
-	g.host.SendToSeat(event, seats...)
-}
-
-func (g *Game) sendExcludeSeat(event game.TopicEvent, seats ...int) {
-	g.host.SendExcludeSeat(event, seats...)
-}
-
-func (g *Game) sendError(err string) {
-	g.host.SendToSeat(game.ErrorEvent(err), g.current)
-}
-
-func (e GameEvent) topic() game.TopicEvent {
-	return game.TopicEvent{
+func (e GameEvent) asTopic() host.TopicEvent {
+	return host.TopicEvent{
 		Topic:   "play",
 		Payload: e,
 	}

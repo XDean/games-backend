@@ -1,10 +1,10 @@
 package host
 
 func (h Host) Plug(plugin Plugin) Host {
-	h.handler = plugin.Plug(h.handler)
+	h.Handler = plugin.Plug(h.Handler)
 	return h
 }
 
-func (h Host) Handle(ctx Context) {
-	h.handler.Handle(ctx)
+func (h Host) Handle(ctx Context) error {
+	return h.Handler.Handle(ctx)
 }

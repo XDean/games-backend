@@ -8,6 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/xdean/goex/xecho"
 	"net/http"
+
+	_ "games-backend/web/game"
 )
 
 func init() {

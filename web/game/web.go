@@ -14,7 +14,6 @@ import (
 func init() {
 	app.RegisterWeb(func(c *echo.Echo) {
 		c.POST("/api/game/:game", createGame)
-		c.GET("/api/game/:game/:id", singleEvent)
 		c.GET("/socket/game/:game/:id", gameSocket)
 	})
 }
@@ -53,22 +52,6 @@ func gameSocket(c echo.Context) error {
 
 func createGame(c echo.Context) error {
 	gameName := c.Param("game")
-
-	server, ok := createServer(gameName)
-	if !ok {
-		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such game: %s", gameName))
-	}
-	server.run()
-
-	return c.JSON(http.StatusOK, xecho.J{
-		"id": server.id,
-	})
-}
-
-func singleEvent(c echo.Context) error {
-	user := c.QueryParam("user")
-	gameName := c.Param("game")
-	id := util.IntParam(c, "id")
 
 	server, ok := createServer(gameName)
 	if !ok {

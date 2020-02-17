@@ -55,7 +55,7 @@ func NewStandardBoard() *Board {
 	g := &Board{
 		current: 0,
 		deck:    deck,
-		board:   nil,
+		board:   [2][][]Card{},
 		drop:    drop,
 		hand:    hand,
 		score:   [2]int{},

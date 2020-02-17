@@ -1,20 +1,23 @@
 package lostcities
 
-import "games-backend/games/game"
+import (
+	"games-backend/games/host"
+	"games-backend/games/host/multi_player"
+	"games-backend/games/host/plugin"
+)
 
 func init() {
-	game.Register("lostcities", Factory{})
+	host.Register(host.Meta{
+		Name:    "lostcities",
+		Factory: Factory{},
+	})
 }
 
 type Factory struct {
 }
 
-func (f Factory) NewConfig() interface{} {
-	return nil
-}
-
-func (f Factory) NewGame(config interface{}) game.Game {
-	return &Game{
-		history: [][]GameEvent{},
-	}
+func (f Factory) NewHost() host.Host {
+	return host.Host{
+		Handler: multi_player.NewHost(&Game{}),
+	}.Plug(plugin.NewChat())
 }
