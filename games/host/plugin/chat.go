@@ -18,7 +18,7 @@ type (
 )
 
 func NewChat() Chat {
-	return Chat{connected: map[string]bool{}}
+	return Chat{connected: map[string]bool{}, history: []chatMessage{}}
 }
 
 func (c Chat) Plug(handler host.EventHandler) host.EventHandler {

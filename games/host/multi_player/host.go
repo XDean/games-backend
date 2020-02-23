@@ -13,20 +13,21 @@ type (
 
 	Context struct {
 		host.Context
-		host Host
+		host *Host
 	}
 
 	Host struct {
 		game Game
 
+		playing  bool
 		ready    map[string]bool
 		players  []string
 		watchers []string
 	}
 )
 
-func NewHost(game Game) Host {
-	return Host{
+func NewHost(game Game) *Host {
+	return &Host{
 		game:     game,
 		watchers: []string{},
 		ready:    map[string]bool{},
@@ -34,10 +35,15 @@ func NewHost(game Game) Host {
 	}
 }
 
-func (h Host) Handle(ctx host.Context) error {
+func (h *Host) Handle(ctx host.Context) error {
 	id := ctx.ClientId
 	multiContext := Context{host: h, Context: ctx}
 	switch ctx.Topic {
+	case "host-info":
+		ctx.SendEvent(id, host.TopicEvent{
+			Topic:   "host-info",
+			Payload: h.toInfo(),
+		})
 	case "join":
 		if h.isPlayer(id) {
 			return fmt.Errorf("你已经加入了该房间")
@@ -47,13 +53,10 @@ func (h Host) Handle(ctx host.Context) error {
 			multiContext.SendAll(host.TopicEvent{
 				Topic: "join",
 				Payload: playerInfo{
-					Id:   id,
-					Seat: seat,
+					Id:    id,
+					Seat:  seat,
+					Ready: false,
 				},
-			})
-			ctx.SendEvent(id, host.TopicEvent{
-				Topic:   "host-info",
-				Payload: h.toInfo(),
 			})
 		} else {
 			return fmt.Errorf("房间已满")
@@ -62,16 +65,14 @@ func (h Host) Handle(ctx host.Context) error {
 		if h.isWatcher(id) {
 			return fmt.Errorf("你已在观战该房间")
 		}
+		h.watchers = append(h.watchers, id)
 		multiContext.SendAll(host.TopicEvent{
 			Topic:   "watch",
 			Payload: id,
 		})
-		ctx.SendEvent(id, host.TopicEvent{
-			Topic:   "host-info",
-			Payload: h.toInfo(),
-		})
 	case "ready":
 		if h.isPlayer(id) {
+			seat, _ := h.getSeat(id)
 			ready := false
 			err := ctx.GetPayload(&ready)
 			if err != nil {
@@ -79,10 +80,15 @@ func (h Host) Handle(ctx host.Context) error {
 			}
 			h.ready[id] = ready
 			multiContext.SendAll(host.TopicEvent{
-				Topic:   "ready",
-				Payload: id,
+				Topic: "ready",
+				Payload: playerInfo{
+					Id:    id,
+					Seat:  seat,
+					Ready: ready,
+				},
 			})
-			if h.isAllReady() {
+			if ready && h.isAllReady() {
+				h.playing = true
 				return ctx.TriggerEvent(host.TopicEvent{Topic: "game-start"})
 			}
 		}
@@ -137,6 +143,6 @@ func (h *Host) isAllReady() bool {
 	return true
 }
 
-func (h Host) allPlayers() []string {
+func (h *Host) allPlayers() []string {
 	return append(h.watchers, h.players...)
 }

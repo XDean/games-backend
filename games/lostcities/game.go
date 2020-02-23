@@ -27,15 +27,13 @@ type (
 	}
 
 	GameInfo struct {
-		Over        bool     `json:"over"`
-		Seat        int      `json:"seat"`
-		CurrentSeat int      `json:"current-seat"`
-		Deck        int      `json:"deck"`
-		MyBoard     [][]Card `json:"my-board"`
-		OtherBoard  [][]Card `json:"other-board"`
-		DropBoard   [][]Card `json:"drop-board"`
-		Hand        []Card   `json:"hand"`
-		Score       [2]int   `json:"score"`
+		Over        bool        `json:"over"`
+		CurrentSeat int         `json:"current"`
+		Deck        int         `json:"deck"`
+		Board       [2][][]Card `json:"board"`
+		Drop        [][]Card    `json:"drop"`
+		Hand        [2][]Card   `json:"hand"`
+		Score       [2]int      `json:"score"`
 	}
 )
 
@@ -127,17 +125,17 @@ func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error 
 
 func (g *Game) gameInfo(ctx multi_player.Context, topic string, id string) host.TopicEvent {
 	if seat, ok := ctx.GetSeat(id); ok {
+		hand := g.hand
+		hand[1-seat] = []Card{}
 		return host.TopicEvent{
 			Topic: topic,
 			Payload: GameInfo{
 				Over:        g.over,
-				Seat:        seat,
 				CurrentSeat: g.current,
 				Deck:        len(g.deck),
-				Hand:        g.hand[seat],
-				DropBoard:   g.drop,
-				MyBoard:     g.board[seat],
-				OtherBoard:  g.board[1-seat],
+				Hand:        hand,
+				Drop:        g.drop,
+				Board:       g.board,
 				Score:       g.score,
 			},
 		}
@@ -148,9 +146,9 @@ func (g *Game) gameInfo(ctx multi_player.Context, topic string, id string) host.
 				Over:        g.over,
 				CurrentSeat: g.current,
 				Deck:        len(g.deck),
-				DropBoard:   g.drop,
-				MyBoard:     g.board[0],
-				OtherBoard:  g.board[1],
+				Hand:        g.hand,
+				Drop:        g.drop,
+				Board:       g.board,
 				Score:       g.score,
 			},
 		}

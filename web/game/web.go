@@ -41,7 +41,6 @@ func gameSocket(c echo.Context) error {
 			Topic:   "error",
 			Payload: "房间不存在",
 		})
-		_ = ws.Close()
 		return nil
 	}
 
