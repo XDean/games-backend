@@ -67,8 +67,10 @@ func (h *Host) Handle(ctx host.Context) error {
 		}
 		h.watchers = append(h.watchers, id)
 		multiContext.SendAll(host.TopicEvent{
-			Topic:   "watch",
-			Payload: id,
+			Topic: "watch",
+			Payload: watcherInfo{
+				Id: id,
+			},
 		})
 	case "ready":
 		if h.isPlayer(id) {

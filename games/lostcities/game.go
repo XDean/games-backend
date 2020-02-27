@@ -21,9 +21,16 @@ type (
 		Card Card `json:"card"`
 		Drop bool `json:"drop"`
 		// Draw card
-		FromDeck     bool `json:"deck"`           // Or from drop
+		FromDeck bool `json:"deck"`      // Or from drop
+		DeckCard Card `json:"deck-card"` // Only for response
+
 		Color        int  `json:"draw-color"`     // Only available when from drop
 		DrawDropCard Card `json:"draw-drop-card"` // Only for response
+	}
+
+	DrawEvent struct {
+		Seat int  `json:"seat"`
+		Card Card `json:"card"`
 	}
 
 	GameInfo struct {
@@ -43,7 +50,7 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 		if g.Board == nil || g.over {
 			g.Board = NewStandardBoard()
 			ctx.SendEach(func(id string) host.TopicEvent {
-				return g.gameInfo(ctx, "start", id)
+				return g.gameInfo(ctx, "game-start", id)
 			})
 		}
 	case "game-info":
@@ -51,6 +58,9 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 			ctx.SendBack(g.gameInfo(ctx, "game-info", ctx.ClientId))
 		}
 	case "play":
+		if g.Board == nil {
+			return fmt.Errorf("游戏尚未开始")
+		}
 		event := GameEvent{}
 		err := ctx.GetPayload(&event)
 		if err != nil {
@@ -110,16 +120,14 @@ func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error 
 		g.PlayCard(g.current, event.Card)
 	}
 	if event.FromDeck {
-		draw := g.DrawCard(g.current, 1)[0]
-		defer ctx.SendSeat(host.TopicEvent{
-			Topic:   "draw",
-			Payload: draw,
-		}, g.current)
+		event.DeckCard = g.DrawCard(g.current, 1)[0]
 	} else {
-		draw := g.DrawDropCard(g.current, event.Color)
-		event.DrawDropCard = draw
+		event.DrawDropCard = g.DrawDropCard(g.current, event.Color)
 	}
-	ctx.SendAll(event.asTopic())
+	ctx.SendSeat(event.asTopic(), g.current)
+	ctx.SendWatchers(event.asTopic())
+	event.DeckCard = -1
+	ctx.SendExcludeSeat(event.asTopic(), g.current)
 	return nil
 }
 

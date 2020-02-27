@@ -53,7 +53,7 @@ func (s Server) run() {
 				switch event.topic {
 				case "connect":
 					if _, ok := s.clients[client.id]; ok {
-						client.error("Connection already exist")
+						client.error("另一个连接已经存在，你的名字可能被人占用了")
 						client.close()
 						continue
 					}
