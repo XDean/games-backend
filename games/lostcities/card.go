@@ -15,5 +15,5 @@ func (c Card) Point() int {
 }
 
 func (c Card) IsDouble() bool {
-	return int(c) < CARD_DOUBLE
+	return int(c)%CARD < CARD_DOUBLE
 }

@@ -40,7 +40,6 @@ type (
 		Board       [2][][]Card `json:"board"`
 		Drop        [][]Card    `json:"drop"`
 		Hand        [2][]Card   `json:"hand"`
-		Score       [2]int      `json:"score"`
 	}
 )
 
@@ -97,23 +96,8 @@ func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error 
 	if !event.FromDeck && len(g.drop[event.Color]) == 0 {
 		return fmt.Errorf("该弃牌堆中没有牌")
 	}
-	defer func() {
-		g.next()
-		if g.over {
-			ctx.SendAll(host.TopicEvent{
-				Topic:   "over",
-				Payload: g.score,
-			})
-		} else {
-			ctx.SendAll(host.TopicEvent{
-				Topic:   "turn",
-				Payload: g.current,
-			})
-		}
-	}()
 	//g.history[g.current] = append(g.history[g.current], event)
 	event.Seat = g.current
-	// TODO Check deck has card
 	if event.Drop {
 		g.DropCard(g.current, event.Card)
 	} else {
@@ -128,6 +112,16 @@ func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error 
 	ctx.SendWatchers(event.asTopic())
 	event.DeckCard = -1
 	ctx.SendExcludeSeat(event.asTopic(), g.current)
+
+	g.next()
+	if g.over {
+		return ctx.TriggerEvent(host.TopicEvent{Topic: "game-over"})
+	} else {
+		ctx.SendAll(host.TopicEvent{
+			Topic:   "turn",
+			Payload: g.current,
+		})
+	}
 	return nil
 }
 
@@ -144,7 +138,6 @@ func (g *Game) gameInfo(ctx multi_player.Context, topic string, id string) host.
 				Hand:        hand,
 				Drop:        g.drop,
 				Board:       g.board,
-				Score:       g.score,
 			},
 		}
 	} else {
@@ -157,7 +150,6 @@ func (g *Game) gameInfo(ctx multi_player.Context, topic string, id string) host.
 				Hand:        g.hand,
 				Drop:        g.drop,
 				Board:       g.board,
-				Score:       g.score,
 			},
 		}
 	}

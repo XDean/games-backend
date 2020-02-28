@@ -5,6 +5,7 @@ import (
 	"games-backend/games/host"
 	"games-backend/util"
 	"github.com/gorilla/websocket"
+	"github.com/thoas/go-funk"
 )
 
 type (
@@ -63,10 +64,17 @@ func (s Server) run() {
 						Payload: client.id,
 					})
 				case "disconnect":
-					delete(s.clients, client.id)
-					s.sendAll(host.TopicEvent{
-						Topic:   "disconnect",
-						Payload: client.id,
+					if s.clients[client.id].conn == client.conn {
+						delete(s.clients, client.id)
+						s.sendAll(host.TopicEvent{
+							Topic:   "disconnect",
+							Payload: client.id,
+						})
+					}
+				case "connect-info":
+					client.sendToClient(host.TopicEvent{
+						Topic:   "connect-info",
+						Payload: funk.Keys(s.clients),
 					})
 				}
 			}

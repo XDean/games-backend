@@ -90,10 +90,17 @@ func (h *Host) Handle(ctx host.Context) error {
 				},
 			})
 			if ready && h.isAllReady() {
-				h.playing = true
 				return ctx.TriggerEvent(host.TopicEvent{Topic: "game-start"})
 			}
 		}
+	case "game-start":
+		h.playing = true
+	case "game-over":
+		h.playing = false
+		for k := range h.ready {
+			h.ready[k] = false
+		}
+		multiContext.SendAll(host.TopicEvent{Topic: "game-over"})
 	}
 	return h.game.Handle(multiContext)
 }
