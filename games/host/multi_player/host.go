@@ -7,8 +7,10 @@ import (
 
 type (
 	Game interface {
+		NewGame(ctx Context) error
 		Handle(ctx Context) error
-		PlayerCount() int
+		MinPlayerCount() int
+		MaxPlayerCount() int
 	}
 
 	Context struct {
@@ -31,7 +33,7 @@ func NewHost(game Game) *Host {
 		game:     game,
 		watchers: []string{},
 		ready:    map[string]bool{},
-		players:  make([]string, game.PlayerCount()),
+		players:  make([]string, game.MaxPlayerCount()),
 	}
 }
 
@@ -89,12 +91,13 @@ func (h *Host) Handle(ctx host.Context) error {
 					Ready: ready,
 				},
 			})
-			if ready && h.isAllReady() {
+			if h.isAllReady() {
 				return ctx.TriggerEvent(host.TopicEvent{Topic: "game-start"})
 			}
 		}
 	case "game-start":
 		h.playing = true
+		return h.game.NewGame(multiContext)
 	case "game-over":
 		h.playing = false
 		for k := range h.ready {
@@ -133,7 +136,7 @@ func (h *Host) getSeat(id string) (int, bool) {
 }
 
 func (h *Host) availableSeat() (int, bool) {
-	for i := 0; i < h.game.PlayerCount(); i++ {
+	for i := 0; i < h.game.MaxPlayerCount(); i++ {
 		if h.players[i] == "" {
 			return i, true
 		}

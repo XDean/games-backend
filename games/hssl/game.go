@@ -8,41 +8,13 @@ import (
 
 type (
 	Game struct {
-		*Board
-		history [][]GameEvent
-	}
-
-	GameEvent struct {
-		Seat int `json:"seat"` // only for response
-		// Play card
-		Card Card `json:"card"`
-		Drop bool `json:"drop"`
-		// Draw card
-		FromDeck bool `json:"deck"`      // Or from drop
-		DeckCard Card `json:"deck-card"` // Only for response
-
-		Color        int  `json:"draw-color"`     // Only available when from drop
-		DrawDropCard Card `json:"draw-drop-card"` // Only for response
-	}
-
-	DrawEvent struct {
-		Seat int  `json:"seat"`
-		Card Card `json:"card"`
-	}
-
-	GameInfo struct {
-		Over        bool        `json:"over"`
-		CurrentSeat int         `json:"current"`
-		Deck        int         `json:"deck"`
-		Board       [2][][]Card `json:"board"`
-		Drop        [][]Card    `json:"drop"`
-		Hand        [2][]Card   `json:"hand"`
+		board *Board
 	}
 )
 
 func (g *Game) NewGame(ctx multi_player.Context) error {
-	if g.Board == nil || g.over {
-		g.Board = NewStandardBoard()
+	if g.board == nil || g.status == Over {
+		g.board = NewStandardBoard(ctx)
 		ctx.SendEach(func(id string) host.TopicEvent {
 			return g.gameInfo(ctx, "game-start", id)
 		})
@@ -52,6 +24,13 @@ func (g *Game) NewGame(ctx multi_player.Context) error {
 
 func (g *Game) Handle(ctx multi_player.Context) error {
 	switch ctx.Topic {
+	case "game-start":
+		if g.Board == nil || g.over {
+			g.Board = NewStandardBoard()
+			ctx.SendEach(func(id string) host.TopicEvent {
+				return g.gameInfo(ctx, "game-start", id)
+			})
+		}
 	case "game-info":
 		if g.Board != nil {
 			ctx.SendBack(g.gameInfo(ctx, "game-info", ctx.ClientId))
@@ -71,11 +50,11 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 }
 
 func (g *Game) MinPlayerCount() int {
-	return 2
+	return 3
 }
 
 func (g *Game) MaxPlayerCount() int {
-	return 2
+	return 5
 }
 
 func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error {

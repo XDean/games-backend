@@ -5,8 +5,6 @@ import (
 	"github.com/thoas/go-funk"
 )
 
-const ContextKey = "multi_player.sender"
-
 func (c Context) IsPlayer(id string) bool {
 	return c.host.isPlayer(id)
 }

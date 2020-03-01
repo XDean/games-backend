@@ -12,10 +12,9 @@ type (
 	}
 
 	hostInfo struct {
-		PlayerCount int            `json:"count"`
-		Playing     bool           `json:"playing"`
-		Players     []*playerInfo  `json:"players"`
-		Watchers    []*watcherInfo `json:"watchers"`
+		Playing  bool           `json:"playing"`
+		Players  []*playerInfo  `json:"players"`
+		Watchers []*watcherInfo `json:"watchers"`
 	}
 )
 
@@ -39,9 +38,8 @@ func (h *Host) toInfo() hostInfo {
 	}
 
 	return hostInfo{
-		Playing:     h.playing,
-		PlayerCount: h.game.PlayerCount(),
-		Players:     players,
-		Watchers:    watchers,
+		Playing:  h.playing,
+		Players:  players,
+		Watchers: watchers,
 	}
 }
