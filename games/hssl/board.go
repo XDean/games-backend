@@ -9,18 +9,18 @@ const (
 	COLOR       = 6
 	COLOR_COUNT = 11
 
-	Setting1 Status = iota
-	Setting2
-	StepBuySwap
-	StepBanYun
-	StepDrawPlay
-	Over
+	StatusSet1 Status = iota
+	StatusSet2
+	StatusBuySwap
+	StatusBanYun
+	StatusDrawPlay
+	StatusOver
 )
 
 type (
 	Status int
 
-	Card int
+	Card int // -1 means unknown
 	Item int
 
 	Board struct {
@@ -83,7 +83,7 @@ func NewStandardBoard(playerCount int) *Board {
 	}
 
 	g := &Board{
-		status:      Setting1,
+		status:      StatusSet1,
 		current:     rand.Intn(playerCount),
 		playerCount: playerCount,
 		deck:        deck,
@@ -96,7 +96,7 @@ func NewStandardBoard(playerCount int) *Board {
 }
 
 func (g *Board) BuyItem(item Item, card Card) error {
-	if g.status != StepBuySwap {
+	if g.status != StatusBuySwap {
 		return errors.New("现在不是购买阶段")
 	}
 	if !item.IsValid() {
@@ -114,7 +114,7 @@ func (g *Board) BuyItem(item Item, card Card) error {
 		}
 		g.players[g.current].points -= item.Cost()
 		g.players[g.current].boats = append(g.players[g.current].boats, card)
-		g.status = StepDrawPlay
+		g.status = StatusDrawPlay
 	} else {
 		if g.players[g.current].items[item] {
 			return errors.New("不能重复购买相同的道具")
@@ -126,16 +126,16 @@ func (g *Board) BuyItem(item Item, card Card) error {
 		g.players[g.current].items[item] = true
 		g.items[item]--
 		if item == BanYun {
-			g.status = StepBanYun
+			g.status = StatusBanYun
 		} else {
-			g.status = StepDrawPlay
+			g.status = StatusDrawPlay
 		}
 	}
 	return nil
 }
 
 func (g *Board) Swap(index1 int, card1 Card, index2 int, card2 Card) error {
-	if g.status == StepDrawPlay {
+	if g.status == StatusDrawPlay {
 		return errors.New("现在不是换货阶段")
 	}
 	indexValid := func(index int) bool { return index >= 0 && index < len(g.players[g.current].boats) }
@@ -145,7 +145,7 @@ func (g *Board) Swap(index1 int, card1 Card, index2 int, card2 Card) error {
 	isSwap2 := indexValid(index2)
 	if isSwap2 {
 		if g.players[g.current].items[BanYun] {
-			if g.status == StepBanYun {
+			if g.status == StatusBanYun {
 				return errors.New("购买搬运工的回合只能换一船货")
 			}
 		} else {
@@ -181,26 +181,34 @@ func (g *Board) Swap(index1 int, card1 Card, index2 int, card2 Card) error {
 	} else {
 		f1()
 	}
-	if g.status == Setting1 {
+	if g.status == StatusSet1 {
 		if g.current == g.playerCount-1 {
-			g.status = Setting2
+			g.status = StatusSet2
 		} else {
 			g.current++
 		}
-	} else if g.status == Setting2 {
+	} else if g.status == StatusSet2 {
 		if g.current == 0 {
-			g.status = StepBuySwap
+			g.status = StatusBuySwap
 		} else {
 			g.current--
 		}
 	} else {
-		g.status = StepDrawPlay
+		g.status = StatusDrawPlay
 	}
 	return nil
 }
 
+func (g *Board) SkipSwap() error {
+	if g.status == StatusBanYun || g.status == StatusBuySwap {
+		return errors.New("该阶段无法跳过")
+	}
+	g.status = StatusDrawPlay
+	return nil
+}
+
 func (g *Board) DrawCard(biyue bool) ([]Card, error) {
-	if g.status != StepDrawPlay {
+	if g.status != StatusDrawPlay {
 		return nil, errors.New("现在不是抽牌阶段")
 	}
 	if !g.players[g.current].items[BiYue] && biyue {
@@ -219,9 +227,9 @@ func (g *Board) DrawCard(biyue bool) ([]Card, error) {
 	}
 	g.deck = g.deck[count:]
 	if len(g.deck) == 0 {
-		g.status = Over
+		g.status = StatusOver
 	} else {
-		g.status = StepBuySwap
+		g.status = StatusBuySwap
 		g.current = (g.current + 1) % g.playerCount
 	}
 	return cards, nil
@@ -234,7 +242,7 @@ func (g *Board) PlayCard(card Card, dest [6]bool, biyue bool) (biyueCard Card, e
 			count++
 		}
 	}
-	if g.status != StepDrawPlay {
+	if g.status != StatusDrawPlay {
 		return 0, errors.New("现在不是出牌阶段")
 	}
 	if count == 0 || !card.IsValid() {
@@ -274,9 +282,9 @@ func (g *Board) PlayCard(card Card, dest [6]bool, biyue bool) (biyueCard Card, e
 	}
 	defer func() {
 		if len(g.deck) == 0 {
-			g.status = Over
+			g.status = StatusOver
 		} else {
-			g.status = StepBuySwap
+			g.status = StatusBuySwap
 			g.current = (g.current + 1) % g.playerCount
 		}
 	}()
@@ -292,6 +300,14 @@ func (g *Board) PlayCard(card Card, dest [6]bool, biyue bool) (biyueCard Card, e
 
 func (c Card) IsValid() bool {
 	return c >= 0 && c < COLOR
+}
+
+func (p Player) HandCount() int {
+	sum := 0
+	for _, c := range p.hand {
+		sum += c
+	}
+	return sum
 }
 
 func (i Item) IsValid() bool {

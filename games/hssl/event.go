@@ -1,5 +1,16 @@
 package lostcities
 
+const (
+	topicInfo   = "hssl-info"
+	topicSet    = "hssl-set"
+	topicBuy    = "hssl-buy"
+	topicSwap   = "hssl-swap"
+	topicBanYun = "hssl-banyun"
+	topicSkip   = "hssl-skip-swap"
+	topicPlay   = "hssl-play"
+	topicDraw   = "hssl-draw"
+)
+
 type (
 	// Common
 	SeatEvent struct {
@@ -19,6 +30,7 @@ type (
 	}
 
 	PlayerInfo struct {
+		Seat   int           `json:"seat"`
 		Boats  []Card        `json:"boats"`
 		Hand   map[Card]int  `json:"hand"`
 		Items  map[Item]bool `json:"items"`
@@ -84,6 +96,7 @@ type (
 	PlayResponse struct {
 		SeatEvent
 		PlayRequest
+		Card Card `json:"biyue-card"`
 	}
 
 	DrawRequest struct {
@@ -93,10 +106,6 @@ type (
 	DrawResponse struct {
 		SeatEvent
 		DrawRequest
-	}
-
-	DrawPrivateResponse struct {
-		SeatEvent
 		Cards []Card `json:"cards"`
 	}
 )

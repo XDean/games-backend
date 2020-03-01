@@ -1,50 +1,206 @@
 package lostcities
 
 import (
-	"fmt"
+	"errors"
 	"games-backend/games/host"
 	"games-backend/games/host/multi_player"
+	"games-backend/util"
 )
 
 type (
 	Game struct {
-		board *Board
+		board   *Board
+		seatMap multi_player.RoomGameSeatMap
 	}
 )
 
 func (g *Game) NewGame(ctx multi_player.Context) error {
-	if g.board == nil || g.status == Over {
-		g.board = NewStandardBoard(ctx)
-		ctx.SendAllEach(func(id string) host.TopicEvent {
-			return g.gameInfo(ctx, "game-start", id)
-		})
+	if err := g.checkPlaying(false); err != nil {
+		return err
 	}
+	players := ctx.GetPlayers()
+	g.board = NewStandardBoard(len(players))
+	g.seatMap = ctx.GetRoomGameSeatMap()
+	ctx.SendAllEach(func(id string) host.TopicEvent {
+		return g.toInfoEvent(ctx, id)
+	})
 	return nil
 }
 
 func (g *Game) Handle(ctx multi_player.Context) error {
 	switch ctx.Topic {
-	case "game-start":
-		if g.Board == nil || g.over {
-			g.Board = NewStandardBoard()
-			ctx.SendAllEach(func(id string) host.TopicEvent {
-				return g.gameInfo(ctx, "game-start", id)
+	case topicInfo:
+		if g.board != nil {
+			ctx.SendBack(g.toInfoEvent(ctx, ctx.ClientId))
+		}
+	case topicSet:
+		event := SettingRequest{}
+		pos := 0
+		if g.board.status == StatusSet2 {
+			pos = 1
+		}
+		seat := g.board.current
+
+		return util.DoUntilError(
+			func() error { return g.checkPlaying(true) },
+			func() error { return g.checkCurrent(ctx) },
+			func() error { return ctx.GetPayload(&event) },
+			func() error { return g.board.Swap(pos, event.Card, -1, -1) },
+			func() error {
+				ctx.SendAll(host.TopicEvent{
+					Topic: topicSet,
+					Payload: SettingResponse{
+						SeatEvent:      SeatEvent{Seat: g.seatMap.GameToRoom[seat]},
+						SettingRequest: event,
+					},
+				})
+				g.sendStatus(ctx)
+				return nil
 			})
-		}
-	case "game-info":
-		if g.Board != nil {
-			ctx.SendBack(g.gameInfo(ctx, "game-info", ctx.ClientId))
-		}
-	case "play":
-		if g.Board == nil {
-			return fmt.Errorf("游戏尚未开始")
-		}
-		event := GameEvent{}
-		err := ctx.GetPayload(&event)
-		if err != nil {
-			return err
-		}
-		return g.Play(ctx, ctx.ClientId, event)
+	case topicBuy:
+		event := BuyRequest{}
+		seat := g.board.current
+		return util.DoUntilError(
+			func() error { return g.checkPlaying(true) },
+			func() error { return g.checkCurrent(ctx) },
+			func() error { return ctx.GetPayload(&event) },
+			func() error { return g.board.BuyItem(event.Item, event.Card) },
+			func() error {
+				ctx.SendAll(host.TopicEvent{
+					Topic: topicBuy,
+					Payload: BuyResponse{
+						SeatEvent:  SeatEvent{Seat: g.seatMap.GameToRoom[seat]},
+						BuyRequest: event,
+					},
+				})
+				g.sendStatus(ctx)
+				return nil
+			})
+	case topicSwap:
+		event := SwapRequest{}
+		seat := g.board.current
+		return util.DoUntilError(
+			func() error { return g.checkPlaying(true) },
+			func() error { return g.checkCurrent(ctx) },
+			func() error { return ctx.GetPayload(&event) },
+			func() error { return g.board.Swap(event.Index1, event.Card1, event.Index2, event.Card2) },
+			func() error {
+				ctx.SendAll(host.TopicEvent{
+					Topic: topicSwap,
+					Payload: SwapResponse{
+						SeatEvent:   SeatEvent{Seat: g.seatMap.GameToRoom[seat]},
+						SwapRequest: event,
+					},
+				})
+				g.sendStatus(ctx)
+				return nil
+			})
+	case topicBanYun:
+		event := BanYunRequest{}
+		seat := g.board.current
+		return util.DoUntilError(
+			func() error { return g.checkPlaying(true) },
+			func() error { return g.checkCurrent(ctx) },
+			func() error { return ctx.GetPayload(&event) },
+			func() error { return g.board.Swap(event.Index, event.Card, -1, -1) },
+			func() error {
+				ctx.SendAll(host.TopicEvent{
+					Topic: topicBanYun,
+					Payload: BanYunResponse{
+						SeatEvent:     SeatEvent{Seat: g.seatMap.GameToRoom[seat]},
+						BanYunRequest: event,
+					},
+				})
+				g.sendStatus(ctx)
+				return nil
+			})
+	case topicSkip:
+		seat := g.board.current
+		return util.DoUntilError(
+			func() error { return g.checkPlaying(true) },
+			func() error { return g.checkCurrent(ctx) },
+			func() error { return g.board.SkipSwap() },
+			func() error {
+				ctx.SendAll(host.TopicEvent{
+					Topic: topicSkip,
+					Payload: SeatEvent{
+						Seat: g.seatMap.GameToRoom[seat],
+					},
+				})
+				g.sendStatus(ctx)
+				return nil
+			})
+	case topicPlay:
+		event := PlayRequest{}
+		seat := g.board.current
+		biyueCard := Card(-1)
+		return util.DoUntilError(
+			func() error { return g.checkPlaying(true) },
+			func() error { return g.checkCurrent(ctx) },
+			func() error { return ctx.GetPayload(&event) },
+			func() error {
+				c, err := g.board.PlayCard(event.Card, event.Dest, event.BiYue)
+				biyueCard = c
+				return err
+			},
+			func() error {
+				response := PlayResponse{
+					SeatEvent:   SeatEvent{Seat: g.seatMap.GameToRoom[seat]},
+					PlayRequest: event,
+					Card:        biyueCard,
+				}
+				ctx.SendBack(host.TopicEvent{
+					Topic:   topicPlay,
+					Payload: response,
+				})
+				ctx.SendWatchers(host.TopicEvent{
+					Topic:   topicPlay,
+					Payload: response,
+				})
+				response.Card = -1
+				ctx.SendExcludeSeat(host.TopicEvent{
+					Topic:   topicPlay,
+					Payload: response,
+				})
+				g.sendStatus(ctx)
+				return nil
+			})
+	case topicDraw:
+		event := DrawRequest{}
+		seat := g.board.current
+		cards := make([]Card, 0)
+		return util.DoUntilError(
+			func() error { return g.checkPlaying(true) },
+			func() error { return g.checkCurrent(ctx) },
+			func() error { return ctx.GetPayload(&event) },
+			func() error {
+				c, err := g.board.DrawCard(event.BiYue)
+				cards = c
+				return err
+			},
+			func() error {
+				response := DrawResponse{
+					SeatEvent:   SeatEvent{Seat: g.seatMap.GameToRoom[seat]},
+					DrawRequest: event,
+					Cards:       cards,
+				}
+				ctx.SendBack(host.TopicEvent{
+					Topic:   topicDraw,
+					Payload: response,
+				})
+				ctx.SendWatchers(host.TopicEvent{
+					Topic:   topicDraw,
+					Payload: response,
+				})
+				response.Cards = nil
+				ctx.SendExcludeSeat(host.TopicEvent{
+					Topic:   topicDraw,
+					Payload: response,
+				})
+				g.sendStatus(ctx)
+				return nil
+			})
+
 	}
 	return nil
 }
@@ -54,93 +210,73 @@ func (g *Game) MinPlayerCount() int {
 }
 
 func (g *Game) MaxPlayerCount() int {
-	return 5
+	return 4
 }
 
-func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error {
-	if g.over {
-		return fmt.Errorf("游戏已经结束")
-	}
-	if seat, ok := ctx.GetSeat(id); !ok {
-		return fmt.Errorf("你不是该局玩家")
-	} else if g.current != seat {
-		return fmt.Errorf("现在不是你的回合")
-	}
-	if event.Drop && !event.FromDeck && (event.Card.Color() == event.Color) {
-		return fmt.Errorf("你不能立刻摸起刚刚弃置的牌")
-	}
-	if !g.hasCard(g.current, event.Card) {
-		return fmt.Errorf("卡牌不存在")
-	}
-	cards := g.board[g.current][event.Card.Color()]
-	if !event.Drop && len(cards) > 0 && !cards[0].IsDouble() && cards[0].Point() > event.Card.Point() {
-		return fmt.Errorf("每个系列的卡牌必须递增打出")
-	}
-	if !event.FromDeck && len(g.drop[event.Color]) == 0 {
-		return fmt.Errorf("该弃牌堆中没有牌")
-	}
-	//g.history[g.current] = append(g.history[g.current], event)
-	event.Seat = g.current
-	if event.Drop {
-		g.DropCard(g.current, event.Card)
+func (g *Game) checkPlaying(expect bool) error {
+	if g.board == nil || g.board.status == StatusOver {
+		if expect {
+			return errors.New("游戏尚未开始")
+		}
 	} else {
-		g.PlayCard(g.current, event.Card)
-	}
-	if event.FromDeck {
-		event.DeckCard = g.DrawCard(g.current, 1)[0]
-	} else {
-		event.DrawDropCard = g.DrawDropCard(g.current, event.Color)
-	}
-	ctx.SendSeat(event.asTopic(), g.current)
-	ctx.SendWatchers(event.asTopic())
-	event.DeckCard = -1
-	ctx.SendExcludeSeat(event.asTopic(), g.current)
-
-	g.next()
-	if g.over {
-		return ctx.TriggerEvent(host.TopicEvent{Topic: "game-over"})
-	} else {
-		ctx.SendAll(host.TopicEvent{
-			Topic:   "turn",
-			Payload: g.current,
-		})
+		if !expect {
+			return errors.New("游戏已经开始")
+		}
 	}
 	return nil
 }
 
-func (g *Game) gameInfo(ctx multi_player.Context, topic string, id string) host.TopicEvent {
-	if seat, ok := ctx.GetSeat(id); ok {
-		hand := g.hand
-		hand[1-seat] = []Card{}
-		return host.TopicEvent{
-			Topic: topic,
-			Payload: GameInfo{
-				Over:        g.over,
-				CurrentSeat: g.current,
-				Deck:        len(g.deck),
-				Hand:        hand,
-				Drop:        g.drop,
-				Board:       g.board,
-			},
-		}
-	} else {
-		return host.TopicEvent{
-			Topic: topic,
-			Payload: GameInfo{
-				Over:        g.over,
-				CurrentSeat: g.current,
-				Deck:        len(g.deck),
-				Hand:        g.hand,
-				Drop:        g.drop,
-				Board:       g.board,
-			},
-		}
+func (g *Game) checkCurrent(ctx multi_player.Context) error {
+	player := ctx.GetPlayerById(ctx.ClientId)
+	if player == nil {
+		return errors.New("你不是该局玩家")
 	}
+	if g.board != nil && g.board.current != g.seatMap.RoomToGame[player.GetSeat()] {
+		return errors.New("现在不是你的回合")
+	}
+	return nil
 }
 
-func (e GameEvent) asTopic() host.TopicEvent {
+func (g *Game) sendStatus(ctx multi_player.Context) {
+	ctx.SendAll(host.TopicEvent{
+		Topic: "hssl-status",
+		Payload: StatusResponse{
+			Status:  g.board.status,
+			Current: g.seatMap.GameToRoom[g.board.current],
+		},
+	})
+}
+
+func (g *Game) toInfoEvent(ctx multi_player.Context, id string) host.TopicEvent {
+	player := ctx.GetPlayerById(id)
+	playerGameSeat := g.seatMap.RoomToGame[player.GetSeat()]
+
+	playerInfos := make([]PlayerInfo, 0)
+	for gameSeat, p := range g.board.players {
+		playerInfo := PlayerInfo{
+			Seat:   g.seatMap.GameToRoom[gameSeat],
+			Hand:   p.hand,
+			Boats:  p.boats,
+			Items:  p.items,
+			Points: p.points,
+		}
+		if player != nil && playerGameSeat != gameSeat { // not this player
+			playerInfo.Hand = map[Card]int{-1: p.HandCount()}
+			playerInfo.Points = -1
+		}
+		playerInfos = append(playerInfos, playerInfo)
+	}
 	return host.TopicEvent{
-		Topic:   "play",
-		Payload: e,
+		Topic: topicInfo,
+		Payload: GameInfo{
+			Status:      g.board.status,
+			Current:     g.seatMap.GameToRoom[g.board.current],
+			PlayerCount: g.board.playerCount,
+			Deck:        len(g.board.deck),
+			Items:       g.board.items,
+			Goods:       g.board.goods,
+			Board:       g.board.board,
+			Players:     playerInfos,
+		},
 	}
 }

@@ -6,13 +6,23 @@ import (
 )
 
 type (
-	RoomGameSeat struct {
+	RoomGameSeatMap struct {
 		RoomToGame []int
 		GameToRoom []int
 	}
 )
 
-func (c Context) GetRoomGameSeat() RoomGameSeat {
+func (c Context) GetPlayers() []*Player {
+	res := make([]*Player, 0)
+	for _, p := range c.players {
+		if p != nil {
+			res = append(res, p)
+		}
+	}
+	return res
+}
+
+func (c Context) GetRoomGameSeatMap() RoomGameSeatMap {
 	roomToGame := make([]int, c.game.MaxPlayerCount())
 	gameToRoom := make([]int, c.game.MaxPlayerCount())
 	gameSeat := 0
@@ -23,7 +33,7 @@ func (c Context) GetRoomGameSeat() RoomGameSeat {
 			gameSeat++
 		}
 	}
-	return RoomGameSeat{
+	return RoomGameSeatMap{
 		RoomToGame: roomToGame,
 		GameToRoom: gameToRoom,
 	}
