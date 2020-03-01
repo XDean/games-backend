@@ -1,6 +1,7 @@
 package multi_player
 
 import (
+	"errors"
 	"fmt"
 	"games-backend/games/host"
 )
@@ -15,43 +16,60 @@ type (
 
 	Context struct {
 		host.Context
-		host *Host
+		*Room
 	}
 
-	Host struct {
+	Room struct {
 		game Game
 
 		playing  bool
-		ready    map[string]bool
-		players  []string
-		watchers []string
+		players  []*Player // by seat
+		watchers []*Watcher
+	}
+
+	Player struct {
+		id    string
+		ready bool
+		seat  int
+		host  bool
+	}
+
+	Watcher struct {
+		id string
 	}
 )
 
-func NewHost(game Game) *Host {
-	return &Host{
+func NewRoom(game Game) *Room {
+	return &Room{
 		game:     game,
-		watchers: []string{},
-		ready:    map[string]bool{},
-		players:  make([]string, game.MaxPlayerCount()),
+		watchers: []*Watcher{},
+		players:  make([]*Player, game.MaxPlayerCount()),
 	}
 }
 
-func (h *Host) Handle(ctx host.Context) error {
+func (r *Room) Handle(ctx host.Context) error {
 	id := ctx.ClientId
-	multiContext := Context{host: h, Context: ctx}
+	multiContext := Context{Room: r, Context: ctx}
 	switch ctx.Topic {
-	case "host-info":
+	case "room-info":
 		ctx.SendEvent(id, host.TopicEvent{
-			Topic:   "host-info",
-			Payload: h.toInfo(),
+			Topic:   "room-info",
+			Payload: r.toInfo(),
 		})
 	case "join":
-		if h.isPlayer(id) {
+		if r.playing {
+			return errors.New("游戏已经开始")
+		}
+		if r.IsPlayer(id) {
 			return fmt.Errorf("你已经加入了该房间")
 		}
-		if seat, ok := h.availableSeat(); ok {
-			h.players[seat] = id
+		if seat, ok := r.availableSeat(); ok {
+			r.players[seat] = &Player{
+				id:    id,
+				ready: false,
+				seat:  seat,
+				host:  r.GetHost() == nil,
+			}
 			multiContext.SendAll(host.TopicEvent{
 				Topic: "join",
 				Payload: playerInfo{
@@ -64,10 +82,10 @@ func (h *Host) Handle(ctx host.Context) error {
 			return fmt.Errorf("房间已满")
 		}
 	case "watch":
-		if h.isWatcher(id) {
+		if r.IsWatcher(id) {
 			return fmt.Errorf("你已在观战该房间")
 		}
-		h.watchers = append(h.watchers, id)
+		r.watchers = append(r.watchers, &Watcher{id: id})
 		multiContext.SendAll(host.TopicEvent{
 			Topic: "watch",
 			Payload: watcherInfo{
@@ -75,86 +93,162 @@ func (h *Host) Handle(ctx host.Context) error {
 			},
 		})
 	case "ready":
-		if h.isPlayer(id) {
-			seat, _ := h.getSeat(id)
+		if r.playing {
+			return errors.New("游戏已经开始")
+		}
+		player := r.GetPlayerById(id)
+		if player != nil {
 			ready := false
 			err := ctx.GetPayload(&ready)
 			if err != nil {
 				return err
 			}
-			h.ready[id] = ready
+			player.ready = ready
 			multiContext.SendAll(host.TopicEvent{
 				Topic: "ready",
 				Payload: playerInfo{
 					Id:    id,
-					Seat:  seat,
+					Seat:  player.seat,
 					Ready: ready,
 				},
 			})
-			if h.isAllReady() {
-				return ctx.TriggerEvent(host.TopicEvent{Topic: "game-start"})
+		}
+	case "swap-seat":
+		if r.playing {
+			return errors.New("游戏已经开始")
+		}
+		player := r.GetPlayerById(id)
+		if player != nil {
+			if player.ready {
+				return errors.New("已经准备不能换座位")
 			}
+			event := SwapSeatRequest{}
+			err := ctx.GetPayload(&event)
+			if err != nil {
+				return err
+			}
+			if !r.ValidSeat(event.TargetSeat) {
+				return errors.New("参数不合法")
+			}
+			fromSeat := player.seat
+			targetPlayer := r.GetPlayerBySeat(event.TargetSeat)
+			if targetPlayer != nil {
+				if targetPlayer.ready {
+					return errors.New("目标已经准备不能换座位")
+				} else {
+					player.seat, targetPlayer.seat = targetPlayer.seat, player.seat
+					r.players[player.seat] = player
+					r.players[targetPlayer.seat] = targetPlayer
+				}
+			} else {
+				r.players[player.seat] = nil
+				player.seat = event.TargetSeat
+				r.players[event.TargetSeat] = player
+			}
+			multiContext.SendAll(host.TopicEvent{
+				Topic: "swap-seat",
+				Payload: SwapSeatResponse{
+					FromSeat:   fromSeat,
+					TargetSeat: event.TargetSeat,
+				},
+			})
 		}
 	case "game-start":
-		h.playing = true
-		return h.game.NewGame(multiContext)
+		hostPlayer := r.GetHost()
+		if hostPlayer != nil && hostPlayer.id == id {
+			r.playing = true
+			return r.game.NewGame(multiContext)
+		} else {
+			return errors.New("只有主机可以开始游戏")
+		}
 	case "game-over":
-		h.playing = false
-		for k := range h.ready {
-			h.ready[k] = false
+		r.playing = false
+		for _, player := range r.players {
+			player.ready = false
 		}
 		multiContext.SendAll(host.TopicEvent{Topic: "game-over"})
 	}
-	return h.game.Handle(multiContext)
+	return r.game.Handle(multiContext)
 }
 
-func (h *Host) isPlayer(id string) bool {
-	for _, theId := range h.players {
-		if theId == id {
-			return true
+func (r *Room) ValidSeat(seat int) bool {
+	return seat >= 0 && seat < r.game.MaxPlayerCount()
+}
+
+func (r *Room) GetHost() *Player {
+	for _, p := range r.players {
+		if p != nil && p.host {
+			return p
 		}
 	}
-	return false
+	return nil
 }
 
-func (h *Host) isWatcher(id string) bool {
-	for _, theId := range h.watchers {
-		if theId == id {
-			return true
+func (r *Room) GetPlayerById(id string) *Player {
+	for _, p := range r.players {
+		if p != nil && p.id == id {
+			return p
 		}
 	}
-	return false
+	return nil
 }
 
-func (h *Host) getSeat(id string) (int, bool) {
-	for seat, theId := range h.players {
-		if theId == id {
+func (r *Room) GetWatcherById(id string) *Watcher {
+	for _, w := range r.watchers {
+		if w.id == id {
+			return w
+		}
+	}
+	return nil
+}
+
+func (r *Room) GetPlayerBySeat(seat int) *Player {
+	if seat >= 0 && seat < len(r.players) {
+		return r.players[seat]
+	} else {
+		return nil
+	}
+}
+
+func (r *Room) IsPlayer(id string) bool {
+	return r.GetPlayerById(id) != nil
+}
+
+func (r *Room) IsWatcher(id string) bool {
+	return r.GetWatcherById(id) != nil
+}
+
+func (r *Room) availableSeat() (int, bool) {
+	for seat, player := range r.players {
+		if player == nil {
 			return seat, true
 		}
 	}
 	return 0, false
 }
 
-func (h *Host) availableSeat() (int, bool) {
-	for i := 0; i < h.game.MaxPlayerCount(); i++ {
-		if h.players[i] == "" {
-			return i, true
-		}
-	}
-	return 0, false
-}
-
-func (h *Host) isAllReady() bool {
-	for _, id := range h.players {
-		if id == "" {
-			return false
-		} else if !h.ready[id] {
+func (r *Room) isFull() bool {
+	for _, player := range r.players {
+		if player == nil {
 			return false
 		}
 	}
 	return true
 }
 
-func (h *Host) allPlayers() []string {
-	return append(h.watchers, h.players...)
+func (r *Room) isAllReady() bool {
+	for _, player := range r.players {
+		if player != nil && !player.ready {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *Player) GetSeat() int {
+	return p.seat
+}
+
+func (p *Player) IsHost() bool {
+	return p.host
 }

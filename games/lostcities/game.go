@@ -43,7 +43,7 @@ type (
 func (g *Game) NewGame(ctx multi_player.Context) error {
 	if g.Board == nil || g.over {
 		g.Board = NewStandardBoard()
-		ctx.SendEach(func(id string) host.TopicEvent {
+		ctx.SendAllEach(func(id string) host.TopicEvent {
 			return g.gameInfo(ctx, "game-start", id)
 		})
 	}
@@ -82,9 +82,9 @@ func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error 
 	if g.over {
 		return fmt.Errorf("游戏已经结束")
 	}
-	if seat, ok := ctx.GetSeat(id); !ok {
+	if player := ctx.GetPlayerById(id); player == nil {
 		return fmt.Errorf("你不是该局玩家")
-	} else if g.current != seat {
+	} else if g.current != player.GetSeat() {
 		return fmt.Errorf("现在不是你的回合")
 	}
 	if event.Drop && !event.FromDeck && (event.Card.Color() == event.Color) {
@@ -130,9 +130,9 @@ func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error 
 }
 
 func (g *Game) gameInfo(ctx multi_player.Context, topic string, id string) host.TopicEvent {
-	if seat, ok := ctx.GetSeat(id); ok {
+	if player := ctx.GetPlayerById(id); player != nil {
 		hand := g.hand
-		hand[1-seat] = []Card{}
+		hand[1-player.GetSeat()] = []Card{}
 		return host.TopicEvent{
 			Topic: topic,
 			Payload: GameInfo{

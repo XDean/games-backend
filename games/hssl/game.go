@@ -15,7 +15,7 @@ type (
 func (g *Game) NewGame(ctx multi_player.Context) error {
 	if g.board == nil || g.status == Over {
 		g.board = NewStandardBoard(ctx)
-		ctx.SendEach(func(id string) host.TopicEvent {
+		ctx.SendAllEach(func(id string) host.TopicEvent {
 			return g.gameInfo(ctx, "game-start", id)
 		})
 	}
@@ -27,7 +27,7 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 	case "game-start":
 		if g.Board == nil || g.over {
 			g.Board = NewStandardBoard()
-			ctx.SendEach(func(id string) host.TopicEvent {
+			ctx.SendAllEach(func(id string) host.TopicEvent {
 				return g.gameInfo(ctx, "game-start", id)
 			})
 		}

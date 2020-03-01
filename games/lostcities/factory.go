@@ -18,6 +18,6 @@ type Factory struct {
 
 func (f Factory) NewHost() host.Host {
 	return host.Host{
-		Handler: multi_player.NewHost(&Game{}),
+		Handler: multi_player.NewRoom(&Game{}),
 	}.Plug(plugin.NewChat())
 }

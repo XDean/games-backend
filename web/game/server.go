@@ -50,6 +50,12 @@ func (s Server) run() {
 			event := <-s.eventChan
 			client := event.client
 
+			if event.topic[0] == '-' {
+				client.error("禁止出发内部事件")
+				client.close()
+				continue
+			}
+
 			if client.id != "" {
 				switch event.topic {
 				case "connect":
