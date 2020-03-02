@@ -76,6 +76,7 @@ func (r *Room) Handle(ctx host.Context) error {
 					Id:    id,
 					Seat:  seat,
 					Ready: false,
+					Host:  r.players[seat].host,
 				},
 			})
 		} else {
