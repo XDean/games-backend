@@ -12,16 +12,6 @@ type (
 	}
 )
 
-func (c Context) GetPlayers() []*Player {
-	res := make([]*Player, 0)
-	for _, p := range c.players {
-		if p != nil {
-			res = append(res, p)
-		}
-	}
-	return res
-}
-
 func (c Context) GetRoomGameSeatMap() RoomGameSeatMap {
 	roomToGame := make([]int, c.game.MaxPlayerCount())
 	gameToRoom := make([]int, c.game.MaxPlayerCount())

@@ -8,13 +8,21 @@ import (
 const (
 	COLOR       = 6
 	COLOR_COUNT = 11
+)
 
+const (
 	StatusSet1 Status = iota
 	StatusSet2
 	StatusBuySwap
 	StatusBanYun
 	StatusDrawPlay
 	StatusOver
+)
+const (
+	GuanShui = iota
+	BanYun
+	BiYue
+	Boat
 )
 
 type (
@@ -42,13 +50,6 @@ type (
 		items  map[Item]bool
 		points int
 	}
-)
-
-const (
-	Boat = iota
-	GuanShui
-	BanYun
-	BiYue
 )
 
 func NewStandardBoard(playerCount int) *Board {

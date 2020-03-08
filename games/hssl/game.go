@@ -18,8 +18,7 @@ func (g *Game) NewGame(ctx multi_player.Context) error {
 	if err := g.checkPlaying(false); err != nil {
 		return err
 	}
-	players := ctx.GetPlayers()
-	g.board = NewStandardBoard(len(players))
+	g.board = NewStandardBoard(ctx.GetPlayerCount())
 	g.seatMap = ctx.GetRoomGameSeatMap()
 	ctx.SendAllEach(func(id string) host.TopicEvent {
 		return g.toInfoEvent(ctx, id)
@@ -206,7 +205,7 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 }
 
 func (g *Game) MinPlayerCount() int {
-	return 3
+	return 2
 }
 
 func (g *Game) MaxPlayerCount() int {

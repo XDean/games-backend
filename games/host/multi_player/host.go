@@ -157,7 +157,11 @@ func (r *Room) Handle(ctx host.Context) error {
 	case "game-start":
 		hostPlayer := r.GetHost()
 		if hostPlayer != nil && hostPlayer.id == id {
+			if r.GetPlayerCount() < r.game.MinPlayerCount() {
+				return errors.New("人数不足，无法开始游戏")
+			}
 			r.playing = true
+			multiContext.SendAll(host.TopicEvent{Topic: "game-start"})
 			return r.game.NewGame(multiContext)
 		} else {
 			return errors.New("只有主机可以开始游戏")
@@ -226,6 +230,20 @@ func (r *Room) availableSeat() (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+func (c *Room) GetPlayers() []*Player {
+	res := make([]*Player, 0)
+	for _, p := range c.players {
+		if p != nil {
+			res = append(res, p)
+		}
+	}
+	return res
+}
+
+func (r *Room) GetPlayerCount() int {
+	return len(r.GetPlayers())
 }
 
 func (r *Room) isFull() bool {
