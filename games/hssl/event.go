@@ -9,6 +9,7 @@ const (
 	topicSkip   = "hssl-skip-swap"
 	topicPlay   = "hssl-play"
 	topicDraw   = "hssl-draw"
+	topicStatus = "hssl-status"
 )
 
 type (
@@ -51,6 +52,7 @@ type (
 	SettingResponse struct {
 		SeatEvent
 		SettingRequest
+		Round int `json:"round"` // 0 or 1
 	}
 
 	// BuySwap + Banyun
@@ -77,8 +79,8 @@ type (
 	}
 
 	BanYunRequest struct {
-		Index int  `json:"index"`
-		Card  Card `json:"card"`
+		Index int  `json:"index1"`
+		Card  Card `json:"card1"`
 	}
 
 	BanYunResponse struct {
@@ -96,7 +98,7 @@ type (
 	PlayResponse struct {
 		SeatEvent
 		PlayRequest
-		Card Card `json:"biyue-card"`
+		BiYueCard Card `json:"biyue-card"`
 	}
 
 	DrawRequest struct {

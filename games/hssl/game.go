@@ -51,6 +51,7 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 					Payload: SettingResponse{
 						SeatEvent:      SeatEvent{Seat: g.seatMap.GameToRoom[seat]},
 						SettingRequest: event,
+						Round:          pos,
 					},
 				})
 				g.sendStatus(ctx)
@@ -146,7 +147,7 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 				response := PlayResponse{
 					SeatEvent:   SeatEvent{Seat: g.seatMap.GameToRoom[seat]},
 					PlayRequest: event,
-					Card:        biyueCard,
+					BiYueCard:   biyueCard,
 				}
 				ctx.SendBack(host.TopicEvent{
 					Topic:   topicPlay,
@@ -156,11 +157,11 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 					Topic:   topicPlay,
 					Payload: response,
 				})
-				response.Card = -1
+				response.BiYueCard = -1
 				ctx.SendExcludeSeat(host.TopicEvent{
 					Topic:   topicPlay,
 					Payload: response,
-				})
+				}, seat)
 				g.sendStatus(ctx)
 				return nil
 			})
@@ -191,11 +192,14 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 					Topic:   topicDraw,
 					Payload: response,
 				})
-				response.Cards = nil
+				response.Cards = make([]Card, len(response.Cards))
+				for i := range response.Cards {
+					response.Cards[i] = -1
+				}
 				ctx.SendExcludeSeat(host.TopicEvent{
 					Topic:   topicDraw,
 					Payload: response,
-				})
+				}, seat)
 				g.sendStatus(ctx)
 				return nil
 			})
@@ -238,7 +242,7 @@ func (g *Game) checkCurrent(ctx multi_player.Context) error {
 
 func (g *Game) sendStatus(ctx multi_player.Context) {
 	ctx.SendAll(host.TopicEvent{
-		Topic: "hssl-status",
+		Topic: topicStatus,
 		Payload: StatusResponse{
 			Status:  g.board.status,
 			Current: g.seatMap.GameToRoom[g.board.current],
@@ -248,8 +252,6 @@ func (g *Game) sendStatus(ctx multi_player.Context) {
 
 func (g *Game) toInfoEvent(ctx multi_player.Context, id string) host.TopicEvent {
 	player := ctx.GetPlayerById(id)
-	playerGameSeat := g.seatMap.RoomToGame[player.GetSeat()]
-
 	playerInfos := make([]PlayerInfo, 0)
 	for gameSeat, p := range g.board.players {
 		playerInfo := PlayerInfo{
@@ -259,7 +261,7 @@ func (g *Game) toInfoEvent(ctx multi_player.Context, id string) host.TopicEvent 
 			Items:  p.items,
 			Points: p.points,
 		}
-		if player != nil && playerGameSeat != gameSeat { // not this player
+		if player != nil && g.seatMap.RoomToGame[player.GetSeat()] != gameSeat { // not this player
 			playerInfo.Hand = map[Card]int{-1: p.HandCount()}
 			playerInfo.Points = -1
 		}

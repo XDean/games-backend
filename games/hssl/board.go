@@ -85,7 +85,7 @@ func NewStandardBoard(playerCount int) *Board {
 
 	g := &Board{
 		status:      StatusSet1,
-		current:     rand.Intn(playerCount),
+		current:     0,
 		playerCount: playerCount,
 		deck:        deck,
 		goods:       goods,
@@ -115,6 +115,7 @@ func (g *Board) BuyItem(item Item, card Card) error {
 		}
 		g.players[g.current].points -= item.Cost()
 		g.players[g.current].boats = append(g.players[g.current].boats, card)
+		g.goods[card]--
 		g.status = StatusDrawPlay
 	} else {
 		if g.players[g.current].items[item] {
@@ -201,7 +202,7 @@ func (g *Board) Swap(index1 int, card1 Card, index2 int, card2 Card) error {
 }
 
 func (g *Board) SkipSwap() error {
-	if g.status == StatusBanYun || g.status == StatusBuySwap {
+	if g.status != StatusBanYun && g.status != StatusBuySwap {
 		return errors.New("该阶段无法跳过")
 	}
 	g.status = StatusDrawPlay
@@ -215,9 +216,9 @@ func (g *Board) DrawCard(biyue bool) ([]Card, error) {
 	if !g.players[g.current].items[BiYue] && biyue {
 		return nil, errors.New("你没有交易所牌，不能额外摸牌")
 	}
-	count := 1
+	count := 2
 	if biyue {
-		count = 2
+		count = 3
 	}
 	if len(g.deck) <= count {
 		count = len(g.deck)
