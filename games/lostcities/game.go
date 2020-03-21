@@ -52,11 +52,11 @@ func (g *Game) NewGame(ctx multi_player.Context) error {
 
 func (g *Game) Handle(ctx multi_player.Context) error {
 	switch ctx.Topic {
-	case "game-info":
+	case TopicInfo:
 		if g.Board != nil {
-			ctx.SendBack(g.gameInfo(ctx, "game-info", ctx.ClientId))
+			ctx.SendBack(g.gameInfo(ctx, TopicInfo, ctx.ClientId))
 		}
-	case "play":
+	case TopicPlay:
 		if g.Board == nil {
 			return fmt.Errorf("游戏尚未开始")
 		}
@@ -119,10 +119,10 @@ func (g *Game) Play(ctx multi_player.Context, id string, event GameEvent) error 
 
 	g.next()
 	if g.over {
-		return ctx.TriggerEvent(host.TopicEvent{Topic: "game-over"})
+		return ctx.TriggerEvent(host.TopicEvent{Topic: multi_player.TopicOverInner})
 	} else {
 		ctx.SendAll(host.TopicEvent{
-			Topic:   "turn",
+			Topic:   TopicTurn,
 			Payload: g.current,
 		})
 	}
@@ -161,7 +161,7 @@ func (g *Game) gameInfo(ctx multi_player.Context, topic string, id string) host.
 
 func (e GameEvent) asTopic() host.TopicEvent {
 	return host.TopicEvent{
-		Topic:   "play",
+		Topic:   TopicPlay,
 		Payload: e,
 	}
 }
