@@ -30,7 +30,7 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 	defer func() {
 		if err == nil {
 			if g.board.status == StatusOver {
-				err = ctx.TriggerEvent(host.TopicEvent{Topic: "game-over"})
+				err = ctx.TriggerEvent(host.TopicEvent{Topic: multi_player.TopicOverInner})
 			}
 		}
 	}()

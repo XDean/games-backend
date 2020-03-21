@@ -37,10 +37,7 @@ func gameSocket(c echo.Context) error {
 	server, ok := getServer(gameName, id)
 	if !ok {
 
-		_ = ws.WriteJSON(host.TopicEvent{
-			Topic:   "error",
-			Payload: "房间不存在",
-		})
+		_ = ws.WriteJSON(host.ErrorEvent("房间不存在"))
 		return nil
 	}
 

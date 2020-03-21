@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+const (
+	TopicChat        = "chat"
+	TopicChatHistory = "chat-history"
+)
+
 type (
 	chatMessage struct {
 		Id   string `json:"id"`
@@ -28,7 +33,7 @@ func (c Chat) Plug(handler host.EventHandler) host.EventHandler {
 			c.connected[ctx.ClientId] = true
 		case "disconnect":
 			delete(c.connected, ctx.ClientId)
-		case "chat":
+		case TopicChat:
 			text := ""
 			err := ctx.GetPayload(&text)
 			if err != nil {
@@ -41,15 +46,15 @@ func (c Chat) Plug(handler host.EventHandler) host.EventHandler {
 			}
 			c.history = append(c.history, msg)
 			event := host.TopicEvent{
-				Topic:   "chat",
+				Topic:   TopicChat,
 				Payload: msg,
 			}
 			for id := range c.connected {
 				ctx.SendEvent(id, event)
 			}
-		case "chat-history":
+		case TopicChatHistory:
 			ctx.SendBack(host.TopicEvent{
-				Topic:   "chat-history",
+				Topic:   TopicChatHistory,
 				Payload: c.history,
 			})
 		}
