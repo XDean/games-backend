@@ -26,7 +26,14 @@ func (g *Game) NewGame(ctx multi_player.Context) error {
 	return nil
 }
 
-func (g *Game) Handle(ctx multi_player.Context) error {
+func (g *Game) Handle(ctx multi_player.Context) (err error) {
+	defer func() {
+		if err == nil {
+			if g.board.status == StatusOver {
+				err = ctx.TriggerEvent(host.TopicEvent{Topic: "game-over"})
+			}
+		}
+	}()
 	switch ctx.Topic {
 	case topicInfo:
 		if g.board != nil {
@@ -203,7 +210,6 @@ func (g *Game) Handle(ctx multi_player.Context) error {
 				g.sendStatus(ctx)
 				return nil
 			})
-
 	}
 	return nil
 }

@@ -51,12 +51,12 @@ func (r *Room) Handle(ctx host.Context) error {
 	id := ctx.ClientId
 	multiContext := Context{Room: r, Context: ctx}
 	switch ctx.Topic {
-	case "room-info":
+	case TopicInfo:
 		ctx.SendEvent(id, host.TopicEvent{
-			Topic:   "room-info",
+			Topic:   TopicInfo,
 			Payload: r.toInfo(),
 		})
-	case "join":
+	case TopicJoin:
 		if r.playing {
 			return errors.New("游戏已经开始")
 		}
@@ -71,7 +71,7 @@ func (r *Room) Handle(ctx host.Context) error {
 				host:  r.GetHost() == nil,
 			}
 			multiContext.SendAll(host.TopicEvent{
-				Topic: "join",
+				Topic: TopicJoin,
 				Payload: playerInfo{
 					Id:    id,
 					Seat:  seat,
@@ -82,18 +82,18 @@ func (r *Room) Handle(ctx host.Context) error {
 		} else {
 			return fmt.Errorf("房间已满")
 		}
-	case "watch":
+	case TopicWatch:
 		if r.IsWatcher(id) {
 			return fmt.Errorf("你已在观战该房间")
 		}
 		r.watchers = append(r.watchers, &Watcher{id: id})
 		multiContext.SendAll(host.TopicEvent{
-			Topic: "watch",
+			Topic: TopicWatch,
 			Payload: watcherInfo{
 				Id: id,
 			},
 		})
-	case "ready":
+	case TopicReady:
 		if r.playing {
 			return errors.New("游戏已经开始")
 		}
@@ -106,7 +106,7 @@ func (r *Room) Handle(ctx host.Context) error {
 			}
 			player.ready = ready
 			multiContext.SendAll(host.TopicEvent{
-				Topic: "ready",
+				Topic: TopicReady,
 				Payload: playerInfo{
 					Id:    id,
 					Seat:  player.seat,
@@ -114,7 +114,7 @@ func (r *Room) Handle(ctx host.Context) error {
 				},
 			})
 		}
-	case "swap-seat":
+	case TopicSwap:
 		if r.playing {
 			return errors.New("游戏已经开始")
 		}
@@ -147,31 +147,31 @@ func (r *Room) Handle(ctx host.Context) error {
 				r.players[event.TargetSeat] = player
 			}
 			multiContext.SendAll(host.TopicEvent{
-				Topic: "swap-seat",
+				Topic: TopicSwap,
 				Payload: SwapSeatResponse{
 					FromSeat:   fromSeat,
 					TargetSeat: event.TargetSeat,
 				},
 			})
 		}
-	case "game-start":
+	case TopicStart:
 		hostPlayer := r.GetHost()
 		if hostPlayer != nil && hostPlayer.id == id {
 			if r.GetPlayerCount() < r.game.MinPlayerCount() {
 				return errors.New("人数不足，无法开始游戏")
 			}
 			r.playing = true
-			multiContext.SendAll(host.TopicEvent{Topic: "game-start"})
+			multiContext.SendAll(host.TopicEvent{Topic: TopicStart})
 			return r.game.NewGame(multiContext)
 		} else {
 			return errors.New("只有主机可以开始游戏")
 		}
-	case "game-over":
+	case TopicOverInner:
 		r.playing = false
 		for _, player := range r.players {
 			player.ready = false
 		}
-		multiContext.SendAll(host.TopicEvent{Topic: "game-over"})
+		multiContext.SendAll(host.TopicEvent{Topic: TopicOver})
 	}
 	return r.game.Handle(multiContext)
 }

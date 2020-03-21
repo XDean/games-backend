@@ -1,5 +1,16 @@
 package multi_player
 
+const (
+	TopicInfo      = "room-info"
+	TopicJoin      = "room-join"
+	TopicWatch     = "room-watch"
+	TopicReady     = "room-ready"
+	TopicSwap      = "room-swap-seat"
+	TopicStart     = "room-game-over"
+	TopicOver      = "room-game-over"
+	TopicOverInner = "_room-game-over"
+)
+
 type (
 	SwapSeatRequest struct {
 		TargetSeat int `json:"target"`
