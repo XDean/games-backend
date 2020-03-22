@@ -167,11 +167,15 @@ func (r *Room) Handle(ctx host.Context) error {
 			return errors.New("只有主机可以开始游戏")
 		}
 	case TopicOverInner:
-		r.playing = false
-		for _, player := range r.players {
-			player.ready = false
+		if r.playing {
+			r.playing = false
+			for _, player := range r.players {
+				if player != nil {
+					player.ready = false
+				}
+			}
+			multiContext.SendAll(host.TopicEvent{Topic: TopicOver})
 		}
-		multiContext.SendAll(host.TopicEvent{Topic: TopicOver})
 	}
 	return r.game.Handle(multiContext)
 }

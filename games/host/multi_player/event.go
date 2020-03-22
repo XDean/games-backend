@@ -6,7 +6,7 @@ const (
 	TopicWatch     = "room-watch"
 	TopicReady     = "room-ready"
 	TopicSwap      = "room-swap-seat"
-	TopicStart     = "room-game-over"
+	TopicStart     = "room-game-start"
 	TopicOver      = "room-game-over"
 	TopicOverInner = "_room-game-over"
 )

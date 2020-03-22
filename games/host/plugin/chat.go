@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	TopicChat        = "chat"
+	TopicChat        = "chat-message"
 	TopicChatHistory = "chat-history"
 )
 

@@ -44,7 +44,7 @@ func (g *Game) NewGame(ctx multi_player.Context) error {
 	if g.Board == nil || g.over {
 		g.Board = NewStandardBoard()
 		ctx.SendAllEach(func(id string) host.TopicEvent {
-			return g.gameInfo(ctx, "game-start", id)
+			return g.gameInfo(ctx, TopicInfo, id)
 		})
 	}
 	return nil

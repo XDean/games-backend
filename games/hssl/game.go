@@ -27,13 +27,6 @@ func (g *Game) NewGame(ctx multi_player.Context) error {
 }
 
 func (g *Game) Handle(ctx multi_player.Context) (err error) {
-	defer func() {
-		if err == nil {
-			if g.board.status == StatusOver {
-				err = ctx.TriggerEvent(host.TopicEvent{Topic: multi_player.TopicOverInner})
-			}
-		}
-	}()
 	switch ctx.Topic {
 	case topicInfo:
 		if g.board != nil {
@@ -45,10 +38,11 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 		if g.board.status == StatusSet2 {
 			pos = 1
 		}
-		seat := g.board.current
+		var seat int
 
 		return util.DoUntilError(
 			func() error { return g.checkPlaying(true) },
+			func() error { seat = g.board.current; return nil },
 			func() error { return g.checkCurrent(ctx) },
 			func() error { return ctx.GetPayload(&event) },
 			func() error { return g.board.Swap(pos, event.Card, -1, -1) },
@@ -66,9 +60,10 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 			})
 	case topicBuy:
 		event := BuyRequest{}
-		seat := g.board.current
+		var seat int
 		return util.DoUntilError(
 			func() error { return g.checkPlaying(true) },
+			func() error { seat = g.board.current; return nil },
 			func() error { return g.checkCurrent(ctx) },
 			func() error { return ctx.GetPayload(&event) },
 			func() error { return g.board.BuyItem(event.Item, event.Card) },
@@ -85,9 +80,10 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 			})
 	case topicSwap:
 		event := SwapRequest{}
-		seat := g.board.current
+		var seat int
 		return util.DoUntilError(
 			func() error { return g.checkPlaying(true) },
+			func() error { seat = g.board.current; return nil },
 			func() error { return g.checkCurrent(ctx) },
 			func() error { return ctx.GetPayload(&event) },
 			func() error { return g.board.Swap(event.Index1, event.Card1, event.Index2, event.Card2) },
@@ -104,9 +100,10 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 			})
 	case topicBanYun:
 		event := BanYunRequest{}
-		seat := g.board.current
+		var seat int
 		return util.DoUntilError(
 			func() error { return g.checkPlaying(true) },
+			func() error { seat = g.board.current; return nil },
 			func() error { return g.checkCurrent(ctx) },
 			func() error { return ctx.GetPayload(&event) },
 			func() error { return g.board.Swap(event.Index, event.Card, -1, -1) },
@@ -122,9 +119,10 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 				return nil
 			})
 	case topicSkip:
-		seat := g.board.current
+		var seat int
 		return util.DoUntilError(
 			func() error { return g.checkPlaying(true) },
+			func() error { seat = g.board.current; return nil },
 			func() error { return g.checkCurrent(ctx) },
 			func() error { return g.board.SkipSwap() },
 			func() error {
@@ -139,10 +137,11 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 			})
 	case topicPlay:
 		event := PlayRequest{}
-		seat := g.board.current
+		var seat int
 		biyueCard := Card(-1)
 		return util.DoUntilError(
 			func() error { return g.checkPlaying(true) },
+			func() error { seat = g.board.current; return nil },
 			func() error { return g.checkCurrent(ctx) },
 			func() error { return ctx.GetPayload(&event) },
 			func() error {
@@ -168,16 +167,18 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 				ctx.SendExcludeSeat(host.TopicEvent{
 					Topic:   topicPlay,
 					Payload: response,
-				}, seat)
+				}, g.seatMap.GameToRoom[seat])
 				g.sendStatus(ctx)
 				return nil
-			})
+			},
+			g.checkOver(ctx))
 	case topicDraw:
 		event := DrawRequest{}
-		seat := g.board.current
+		var seat int
 		cards := make([]Card, 0)
 		return util.DoUntilError(
 			func() error { return g.checkPlaying(true) },
+			func() error { seat = g.board.current; return nil },
 			func() error { return g.checkCurrent(ctx) },
 			func() error { return ctx.GetPayload(&event) },
 			func() error {
@@ -206,12 +207,24 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 				ctx.SendExcludeSeat(host.TopicEvent{
 					Topic:   topicDraw,
 					Payload: response,
-				}, seat)
+				}, g.seatMap.GameToRoom[seat])
 				g.sendStatus(ctx)
 				return nil
-			})
+			},
+			g.checkOver(ctx))
 	}
 	return nil
+}
+
+func (g *Game) checkOver(ctx multi_player.Context) func() error {
+	return func() error {
+		if g.board != nil {
+			if g.board.status == StatusOver {
+				return ctx.TriggerEvent(host.TopicEvent{Topic: multi_player.TopicOverInner})
+			}
+		}
+		return nil
+	}
 }
 
 func (g *Game) MinPlayerCount() int {
