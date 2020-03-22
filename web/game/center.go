@@ -1,6 +1,7 @@
 package game
 
 import (
+	"errors"
 	"games-backend/games/host"
 	"github.com/thoas/go-funk"
 )
@@ -14,16 +15,21 @@ func getServer(game string, id int) (Server, bool) {
 	return server, ok
 }
 
-func createServer(game string) (Server, bool) {
+func createServer(game string) (Server, error) {
 	if meta, ok := host.GetMeta(game); !ok {
-		return Server{}, false
+		return Server{}, errors.New("No such game")
 	} else {
-		server := newServer(nextId(game), meta.Factory.NewHost())
+		newHost := meta.Factory.NewHost()
+		err := newHost.Init()
+		if err != nil {
+			return Server{}, err
+		}
+		server := newServer(nextId(game), newHost)
 		if _, ok := hosts[game]; !ok {
 			hosts[game] = map[int]Server{}
 		}
 		hosts[game][server.id] = server
-		return server, true
+		return server, nil
 	}
 }
 

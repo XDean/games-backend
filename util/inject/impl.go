@@ -10,9 +10,8 @@ type impl struct {
 	objs []interface{}
 }
 
-func (t *impl) Register(obj interface{}) error {
+func (t *impl) Register(obj interface{}) {
 	t.objs = append(t.objs, obj)
-	return nil
 }
 
 func (t *impl) Get(rec interface{}) error {
@@ -36,6 +35,16 @@ func (t *impl) Inject(obj interface{}) error {
 			if err := t.Get(fieldValue); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (t *impl) Refresh() error {
+	for i := range t.objs {
+		err := t.Inject(&t.objs[i])
+		if err != nil {
+			return err
 		}
 	}
 	return nil

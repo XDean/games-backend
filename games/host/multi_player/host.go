@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"games-backend/games/host"
+	"games-backend/games/host/plugin"
 )
 
 type (
@@ -25,6 +26,8 @@ type (
 		playing  bool
 		players  []*Player // by seat
 		watchers []*Watcher
+
+		Connected *plugin.Connect `inject:""`
 	}
 
 	Player struct {
@@ -70,7 +73,7 @@ func (r *Room) Handle(ctx host.Context) error {
 				seat:  seat,
 				host:  r.GetHost() == nil,
 			}
-			multiContext.SendAll(host.TopicEvent{
+			multiContext.SendAllConnected(host.TopicEvent{
 				Topic: TopicJoin,
 				Payload: playerInfo{
 					Id:    id,
@@ -87,7 +90,7 @@ func (r *Room) Handle(ctx host.Context) error {
 			return fmt.Errorf("你已在观战该房间")
 		}
 		r.watchers = append(r.watchers, &Watcher{id: id})
-		multiContext.SendAll(host.TopicEvent{
+		multiContext.SendAllConnected(host.TopicEvent{
 			Topic: TopicWatch,
 			Payload: watcherInfo{
 				Id: id,
@@ -105,7 +108,7 @@ func (r *Room) Handle(ctx host.Context) error {
 				return err
 			}
 			player.ready = ready
-			multiContext.SendAll(host.TopicEvent{
+			multiContext.SendAllConnected(host.TopicEvent{
 				Topic: TopicReady,
 				Payload: playerInfo{
 					Id:    id,
@@ -146,7 +149,7 @@ func (r *Room) Handle(ctx host.Context) error {
 				player.seat = event.TargetSeat
 				r.players[event.TargetSeat] = player
 			}
-			multiContext.SendAll(host.TopicEvent{
+			multiContext.SendAllConnected(host.TopicEvent{
 				Topic: TopicSwap,
 				Payload: SwapSeatResponse{
 					FromSeat:   fromSeat,
@@ -161,7 +164,7 @@ func (r *Room) Handle(ctx host.Context) error {
 				return errors.New("人数不足，无法开始游戏")
 			}
 			r.playing = true
-			multiContext.SendAll(host.TopicEvent{Topic: TopicStart})
+			multiContext.SendAllConnected(host.TopicEvent{Topic: TopicStart})
 			return r.game.NewGame(multiContext)
 		} else {
 			return errors.New("只有主机可以开始游戏")
@@ -174,7 +177,7 @@ func (r *Room) Handle(ctx host.Context) error {
 					player.ready = false
 				}
 			}
-			multiContext.SendAll(host.TopicEvent{Topic: TopicOver})
+			multiContext.SendAllConnected(host.TopicEvent{Topic: TopicOver})
 		}
 	}
 	return r.game.Handle(multiContext)
@@ -236,9 +239,9 @@ func (r *Room) availableSeat() (int, bool) {
 	return 0, false
 }
 
-func (c *Room) GetPlayers() []*Player {
+func (r *Room) GetPlayers() []*Player {
 	res := make([]*Player, 0)
-	for _, p := range c.players {
+	for _, p := range r.players {
 		if p != nil {
 			res = append(res, p)
 		}

@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"games-backend/app"
 	"games-backend/games/host"
 	"games-backend/util"
@@ -49,9 +48,9 @@ func gameSocket(c echo.Context) error {
 func createGame(c echo.Context) error {
 	gameName := c.Param("game")
 
-	server, ok := createServer(gameName)
-	if !ok {
-		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("No such game: %s", gameName))
+	server, err := createServer(gameName)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	server.run()
 

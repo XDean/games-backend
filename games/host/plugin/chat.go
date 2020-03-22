@@ -16,23 +16,20 @@ type (
 		Text string `json:"text"`
 		Time int64  `json:"time"` // unix seconds
 	}
+
 	Chat struct {
-		connected map[string]bool
-		history   []chatMessage
+		Connect *Connect `inject:""`
+		history []chatMessage
 	}
 )
 
-func NewChat() Chat {
-	return Chat{connected: map[string]bool{}, history: []chatMessage{}}
+func NewChat() *Chat {
+	return &Chat{history: []chatMessage{}}
 }
 
-func (c Chat) Plug(handler host.EventHandler) host.EventHandler {
+func (c *Chat) Plug(handler host.EventHandler) host.EventHandler {
 	return host.EventHandlerFunc(func(ctx host.Context) error {
 		switch ctx.Topic {
-		case "connect":
-			c.connected[ctx.ClientId] = true
-		case "disconnect":
-			delete(c.connected, ctx.ClientId)
 		case TopicChat:
 			text := ""
 			err := ctx.GetPayload(&text)
@@ -49,7 +46,7 @@ func (c Chat) Plug(handler host.EventHandler) host.EventHandler {
 				Topic:   TopicChat,
 				Payload: msg,
 			}
-			for id := range c.connected {
+			for _, id := range c.Connect.GetAll() {
 				ctx.SendEvent(id, event)
 			}
 		case TopicChatHistory:

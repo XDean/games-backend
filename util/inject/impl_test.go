@@ -6,10 +6,16 @@ import (
 )
 
 func TestImpl_Get(t *testing.T) {
+	a := &BeanA{1}
+	b := &BeanB{2}
+	c := &BeanC{3}
+
+	var fa InterfaceA = a
+
 	ctx := impl{}
-	assert.NoError(t, ctx.Register(&BeanA{1}))
-	assert.NoError(t, ctx.Register(&BeanB{2}))
-	assert.NoError(t, ctx.Register(&BeanC{3}))
+	ctx.Register(fa)
+	ctx.Register(b)
+	ctx.Register(c)
 
 	var ra = BeanA{}
 	var rb = BeanB{}

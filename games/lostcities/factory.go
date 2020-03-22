@@ -17,7 +17,7 @@ type Factory struct {
 }
 
 func (f Factory) NewHost() host.Host {
-	return host.Host{
-		Handler: multi_player.NewRoom(&Game{}),
-	}.Plug(plugin.NewChat())
+	return host.NewHost(multi_player.NewRoom(&Game{})).
+		Plug(plugin.NewConnect()).
+		Plug(plugin.NewChat())
 }

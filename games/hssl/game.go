@@ -14,6 +14,10 @@ type (
 	}
 )
 
+func (g *Game) stub() {
+	// goland always report error if remove this
+}
+
 func (g *Game) NewGame(ctx multi_player.Context) error {
 	if err := g.checkPlaying(false); err != nil {
 		return err

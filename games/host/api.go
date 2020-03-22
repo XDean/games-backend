@@ -2,7 +2,7 @@ package host
 
 import (
 	"fmt"
-	"games-backend/util"
+	"games-backend/util/inject"
 )
 
 type (
@@ -16,6 +16,7 @@ type (
 	}
 
 	Host struct {
+		Inject  inject.Context
 		Handler EventHandler
 	}
 
@@ -23,7 +24,6 @@ type (
 		ClientId     string
 		Topic        string
 		GetPayload   func(payload interface{}) error
-		GetData      func(name string, receiver interface{}) error
 		TriggerEvent func(event TopicEvent) error            // trigger event let the host handle
 		SendEvent    func(clientId string, event TopicEvent) // send event to client
 	}
@@ -41,15 +41,19 @@ type (
 	PluginFunc func(handler EventHandler) EventHandler
 )
 
+func NewHost(handler EventHandler) *Host {
+	h := Host{
+		Inject:  inject.NewContext(),
+		Handler: handler,
+	}
+	h.Inject.Register(handler)
+	return &h
+}
+
 func NewContext(ctx Context) Context {
 	if ctx.GetPayload == nil {
 		ctx.GetPayload = func(_ interface{}) error {
 			return fmt.Errorf("No Payload")
-		}
-	}
-	if ctx.GetData == nil {
-		ctx.GetData = func(name string, _ interface{}) error {
-			return fmt.Errorf("No Data: %s", name)
 		}
 	}
 	if ctx.SendEvent == nil {
@@ -59,18 +63,6 @@ func NewContext(ctx Context) Context {
 		ctx.TriggerEvent = func(_ TopicEvent) error { return nil }
 	}
 	return ctx
-}
-
-func (c Context) AddData(name string, data interface{}) Context {
-	old := c.GetData
-	reflectFunc := util.ReflectSetReceiver(data)
-	c.GetData = func(n string, receiver interface{}) error {
-		if name == n {
-			return reflectFunc(receiver)
-		}
-		return old(n, receiver)
-	}
-	return c
 }
 
 func (c Context) SendBack(event TopicEvent) {

@@ -38,6 +38,12 @@ func (c Context) SendAll(event host.TopicEvent) {
 	c.SendWatchers(event)
 }
 
+func (c Context) SendAllConnected(event host.TopicEvent) {
+	for _, id := range c.Connected.GetAll() {
+		c.SendEvent(id, event)
+	}
+}
+
 func (c Context) SendAllEach(event func(id string) host.TopicEvent) {
 	for _, player := range c.players {
 		if player != nil {
