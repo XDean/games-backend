@@ -36,6 +36,8 @@ func (g *Game) Handle(ctx multi_player.Context) (err error) {
 		if g.board != nil {
 			ctx.SendBack(g.toInfoEvent(ctx, ctx.ClientId))
 		}
+	case multi_player.TopicOverInner:
+		ctx.SendAll(g.toInfoEvent(ctx, ""))
 	case topicSet:
 		event := SettingRequest{}
 		pos := 0
@@ -284,7 +286,7 @@ func (g *Game) toInfoEvent(ctx multi_player.Context, id string) host.TopicEvent 
 			Items:  p.items,
 			Points: p.points,
 		}
-		if player != nil && g.seatMap.RoomToGame[player.GetSeat()] != gameSeat { // not this player
+		if g.board.status != StatusOver && player != nil && g.seatMap.RoomToGame[player.GetSeat()] != gameSeat { // not this player
 			playerInfo.Hand = map[Card]int{-1: p.HandCount()}
 			playerInfo.Points = -1
 		}
